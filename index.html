@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Embarques - Parras Valley</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#060d1a;color:#f0f4ff;font-family:system-ui,sans-serif;min-height:100vh;}
+::-webkit-scrollbar{width:14px;} ::-webkit-scrollbar-track{background:#0a1628;border-left:1px solid #0f2040;} ::-webkit-scrollbar-thumb{background:#1e4080;border-radius:4px;border:2px solid #0a1628;} ::-webkit-scrollbar-thumb:hover{background:#2a5aaa;}
+.inp{width:100%;background:rgba(0,0,0,.4);border:2px solid #1a3060;border-radius:10px;padding:11px 13px;color:#f0f4ff;font-family:system-ui;font-size:14px;font-weight:700;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .15s;}
+.inp:focus{border-color:#3b82f6;}
+.inp::placeholder{color:#1a3060;}
+.inp option{background:#0a1428;}
+.lbl{font-size:9px;font-weight:900;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px;display:block;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+var useState=React.useState;
+var useEffect=React.useEffect;
+var FB="https://parrasvalley-default-rtdb.firebaseio.com";
+var EMBAR_KEY="embarques-v1";
+var LINEAS_KEY="embarques-lineas-v1";
+function fbGet(k){return fetch(FB+"/"+k+".json").then(function(r){return r.json();}).catch(function(){return null;});}
+function fbSet(k,v){return fetch(FB+"/"+k+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(v)}).catch(function(){});}
+function fechaISO(){var d=new Date();var mm=d.getMonth()+1;var dd=d.getDate();return d.getFullYear()+"-"+(mm<10?"0":"")+mm+"-"+(dd<10?"0":"")+dd;}
+
+var LINEAS_BASE=["RM","Algeza","Arlequín","LL Logístic","JCV","Sodesa"];
+var CRUCES=["Nogales","McAllen","Laredo"];
+var PROD_COLORS={
+  Persa:  {bg:"rgba(34,197,94,.1)",  border:"rgba(34,197,94,.4)",  text:"#22c55e"},
+  Slicer: {bg:"rgba(59,130,246,.1)", border:"rgba(59,130,246,.4)", text:"#3b82f6"},
+  Morron: {bg:"rgba(239,68,68,.1)",  border:"rgba(239,68,68,.4)",  text:"#ef4444"},
+  Minibel:{bg:"rgba(168,85,247,.1)", border:"rgba(168,85,247,.4)", text:"#a855f7"},
+  Europeo:{bg:"rgba(245,158,11,.1)", border:"rgba(245,158,11,.4)", text:"#f59e0b"}
+};
+var PRODS={
+  "Persa Conv":   {base:"Persa",   tipo:"Convencional",pres:["20lb","12x1","8x2"],                                            cals:["Extra Fancy","Fancy","ML","MS"]},
+  "Persa Org":    {base:"Persa",   tipo:"Organico",    pres:["20lb","12x1","8x2"],                                            cals:["Extra Fancy","Fancy","ML","MS"]},
+  "Slicer Conv":  {base:"Slicer",  tipo:"Convencional",pres:["62ct","18ct","24ct","36ct","25lb","50lb"],                      cals:["Superselecto","Selecto","Choice"]},
+  "Slicer Org":   {base:"Slicer",  tipo:"Organico",    pres:["62ct","18ct","24ct","36ct","25lb","50lb"],                      cals:["Superselecto","Selecto","Choice"]},
+  "Morron Conv":  {base:"Morron",  tipo:"Convencional",pres:["L","XL","Jumbo","Verde 25lb"],                                  cals:["Primera","Tercera"]},
+  "Morron Org":   {base:"Morron",  tipo:"Organico",    pres:["L","XL","Jumbo","Verde 25lb"],                                  cals:["Primera","Tercera"]},
+  "Minibel Conv": {base:"Minibel", tipo:"Convencional",pres:["12x8oz","12x1lb","18lb","Verde RPC"],                           cals:["Primera","Segunda"]},
+  "Minibel Org":  {base:"Minibel", tipo:"Organico",    pres:["12x8oz","12x1lb","18lb","Verde RPC"],                           cals:["Primera","Segunda"]},
+  "Europeo Conv": {base:"Europeo", tipo:"Convencional",pres:["24 RPC Small","24 RPC Mediano","12 Small","12 Mediano","Bushel"],cals:["Primera","Segunda"]},
+  "Europeo Org":  {base:"Europeo", tipo:"Organico",    pres:["24 RPC Small","24 RPC Mediano","12 Small","12 Mediano","Bushel"],cals:["Primera","Segunda"]}
+};
+function initCab(){return{fecha:"",linea:"",unidad:"",cruce:""};}
+function initLinea(){return{producto:"",presentacion:"",calidad:"",cliente:"",pallets:"",cajas:""};}
+
+function getCol(prod){var base=(PRODS[prod]||{}).base;return PROD_COLORS[base]||{bg:"rgba(59,130,246,.08)",border:"rgba(59,130,246,.25)",text:"#60a5fa"};}
+function getCals(producto,presentacion){
+  var p=PRODS[producto]||{};
+  // Persa embolsado (12x1 o 8x2): solo Primera/Segunda
+  if(p.base==="Persa"&&(presentacion==="12x1"||presentacion==="8x2")){
+    return["Primera","Segunda"];
+  }
+  // Persa 20lb o sin presentacion: Extra Fancy, Fancy, ML, MS
+  return p.cals||[];
+}
+
+function App(){
+  // fase: "hist" | "header" | "lineas" | "resumen"
+  var s1=useState("hist");var fase=s1[0];var setFase=s1[1];
+  var s2=useState(initCab());var cab=s2[0];var setCab=s2[1];
+  var s3=useState([]);var lineas=s3[0];var setLineas=s3[1];
+  var s4=useState(initLinea());var lForm=s4[0];var setLForm=s4[1];
+  var s5=useState([]);var hist=s5[0];var setHist=s5[1];
+  var s6=useState(LINEAS_BASE.slice());var llista=s6[0];var setLlista=s6[1];
+  var s7=useState(false);var showNL=s7[0];var setShowNL=s7[1];
+  var s8=useState("");var nlVal=s8[0];var setNlVal=s8[1];
+  var s9=useState(null);var detalle=s9[0];var setDetalle=s9[1];
+  var s10=useState(null);var copId=s10[0];var setCopId=s10[1];
+  var s11=useState("");var filtF=s11[0];var setFiltF=s11[1];
+  var s12=useState(null);var errMsg=s12[0];var setErrMsg=s12[1];
+  var s14=useState(null);var editando=s14[0];var setEditando=s14[1];
+  var s17=useState(null);var editId=s17[0];var setEditId=s17[1];
+  var s18=useState(null);var editLineaIdx=s18[0];var setEditLineaIdx=s18[1];
+  var s19=useState(null);var editLineaData=s19[0];var setEditLineaData=s19[1];
+  var s20=useState(false);var editCab=s20[0];var setEditCab=s20[1];
+  var s21=useState(null);var editCabData=s21[0];var setEditCabData=s21[1];
+
+  useEffect(function(){
+    fbGet(EMBAR_KEY).then(function(d){
+      if(d&&typeof d==="object"){
+        var arr=Array.isArray(d)?d.filter(Boolean):Object.values(d).filter(Boolean);
+        arr.sort(function(a,b){return(b.ts||0)-(a.ts||0);});
+        setHist(arr);
+      }
+    });
+    fbGet(LINEAS_KEY).then(function(d){if(d&&Array.isArray(d)&&d.length)setLlista(d);});
+  },[]);
+
+  function setCabF(k,v){setCab(function(c){var n=Object.assign({},c);n[k]=v;return n;});}
+  function setLF(k,v){setLForm(function(f){var n=Object.assign({},f);n[k]=v;if(k==="producto"){n.presentacion="";n.calidad="";}if(k==="presentacion"){n.calidad="";}return n;});}
+
+  function iniciarEmbarque(){
+    if(!cab.fecha||!cab.linea||!cab.cruce){setErrMsg("Fecha, linea y cruce son obligatorios");setTimeout(function(){setErrMsg(null);},3000);return;}
+    setLineas([]);setLForm(initLinea());setFase("lineas");
+  }
+
+  function agregarLinea(){
+    if(!lForm.producto||!lForm.presentacion||!lForm.calidad||!lForm.cliente||!lForm.cajas){
+      setErrMsg("Completa todos los campos antes de agregar");setTimeout(function(){setErrMsg(null);},3000);return;
+    }
+    setLineas(function(ls){return ls.concat([Object.assign({},lForm)]);});
+    setLForm(initLinea());
+  }
+
+  function quitarLinea(i){setLineas(function(ls){return ls.filter(function(_,idx){return idx!==i;});});}
+
+  function cerrarEmbarque(){
+    var val=lineas.filter(function(l){return parseInt(l.cajas)>0;});
+    if(!val.length){setErrMsg("Agrega al menos un producto antes de cerrar");setTimeout(function(){setErrMsg(null);},3000);return;}
+    if(editId){guardarEdicion();return;}
+    var nuevo={id:Date.now(),ts:Date.now(),cab:Object.assign({},cab),lineas:val};
+    var lista=[nuevo].concat(hist);
+    fbSet(EMBAR_KEY,lista).then(function(){
+      setHist(lista);setDetalle(nuevo);
+      setCab(initCab());setLineas([]);setLForm(initLinea());
+      setFase("resumen");
+    });
+  }
+
+  function addLineaTransporte(){
+    if(!nlVal.trim())return;
+    var nl=llista.concat([nlVal.trim()]);
+    setLlista(nl);fbSet(LINEAS_KEY,nl);
+    setCabF("linea",nlVal.trim());
+    setNlVal("");setShowNL(false);
+  }
+
+  function genTexto(emb){
+    var e=emb;var c=e.cab||{};
+    var txt="PARRAS VALLEY TOMATOES\nREPORTE DE EMBARQUE\n";
+    txt+="════════════════════════\n";
+    if(c.fecha)txt+="Fecha:      "+c.fecha+"\n";
+    if(c.linea)txt+="Linea:      "+c.linea+"\n";
+    if(c.unidad)txt+="Unidad:     "+c.unidad+"\n";
+    if(c.manifiesto)txt+="Manifiesto: "+c.manifiesto+"\n";
+    if(c.cruce)txt+="Cruce:      "+c.cruce+"\n";
+    txt+="────────────────────────\n";
+    (e.lineas||[]).forEach(function(l,i){
+      txt+=(i+1)+". "+l.producto+" · "+l.presentacion+" · "+l.calidad+"\n";
+      txt+="   Cliente: "+l.cliente+"\n";
+      if(l.manifiesto)txt+="   Manifiesto: "+l.manifiesto+"\n";
+      txt+="   "+l.pallets+" pallets / "+l.cajas+" cajas\n";
+    });
+    txt+="════════════════════════\n";
+    var tot=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+    var plts=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+    txt+="TOTAL: "+plts+" plt / "+tot+" cajas";
+    return txt;
+  }
+
+  function copiar(emb){
+    var txt=genTexto(emb);var id=emb&&emb.id||"x";
+    if(navigator.clipboard){navigator.clipboard.writeText(txt).then(function(){setCopId(id);setTimeout(function(){setCopId(null);},3000);});}
+    else{var el=document.createElement("textarea");el.value=txt;document.body.appendChild(el);el.select();document.execCommand("copy");document.body.removeChild(el);setCopId(id);}
+  }
+
+  function exportCSV(){
+    var rows=[];
+    rows.push(["PARRAS VALLEY TOMATOES","","","","","","","","",""]);
+    rows.push(["HISTORIAL DE EMBARQUES","","","","","","","","",""]);
+    rows.push(["Exportado:",new Date().toLocaleDateString("es-MX"),"","","","","","","",""]);
+    rows.push([]);
+    hist.forEach(function(e,ei){
+      var cb=e.cab||{};
+      // Encabezado del embarque
+      rows.push(["EMBARQUE "+(ei+1),"","","","","","","","",""]);
+      rows.push(["Fecha",cb.fecha||"","Linea",cb.linea||"","Cruce",cb.cruce||"","Unidad",cb.unidad||"","",""]);
+      rows.push([]);
+      // Agrupar por manifiesto
+      var manMap={};var manOrder=[];
+      (e.lineas||[]).forEach(function(l){
+        var man=l.manifiesto||"Sin manifiesto";
+        if(!manMap[man])manOrder.push(man);
+        if(!manMap[man])manMap[man]=[];
+        manMap[man].push(l);
+      });
+      manOrder.forEach(function(man){
+        rows.push(["Manifiesto: "+man,"","","","","","","","",""]);
+        rows.push(["Posicion","Producto","Presentacion","Calidad","Cliente","Pallets","Cajas","","",""]);
+        manMap[man].forEach(function(l){
+          rows.push([l.posicion||"",l.producto||"",l.presentacion||"",l.calidad||"",l.cliente||"",l.pallets||"",l.cajas||"","","",""]);
+        });
+        var mTot=manMap[man].reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+        var mPlt=manMap[man].reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+        rows.push(["Subtotal manifiesto","","","","",mPlt,mTot,"","",""]);
+        rows.push([]);
+      });
+      var tot=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+      var plts=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+      rows.push(["TOTAL EMBARQUE","","","","",plts,tot,"","",""]);
+      rows.push([]);rows.push([]);
+    });
+    // Generar HTML tabla para abrir en nueva ventana (funciona en iOS y desktop)
+    var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Embarques PVT</title><style>';
+    html+='body{font-family:Arial,sans-serif;font-size:12px;padding:15px;background:#fff;color:#111;}';
+    html+='h1{font-size:16px;margin-bottom:4px;}h2{font-size:13px;color:#1a3a6a;margin:14px 0 4px;}';
+    html+='h3{font-size:11px;color:#444;margin:8px 0 3px;font-weight:600;}';
+    html+='.info{display:grid;grid-template-columns:repeat(4,auto);gap:4px 16px;margin-bottom:8px;}';
+    html+='.lbl{font-size:9px;font-weight:700;color:#888;text-transform:uppercase;}';
+    html+='.val{font-size:12px;font-weight:700;color:#111;}';
+    html+='table{width:100%;border-collapse:collapse;margin-bottom:6px;}';
+    html+='th{background:#1a3a6a;color:#fff;padding:5px 8px;text-align:left;font-size:11px;}';
+    html+='td{padding:4px 8px;border-bottom:1px solid #e5e7eb;font-size:11px;}';
+    html+='tr:hover td{background:#f0f4ff;}';
+    html+='.tot{background:#f0f9ff;font-weight:700;border-top:2px solid #1a3a6a;}';
+    html+='.sep{border-top:3px solid #1a3a6a;margin:16px 0 10px;}';
+    html+='@media print{.no-print{display:none!important;}@page{margin:10mm;}}';
+    html+='</style></head><body>';
+    html+='<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+    html+='<div><h1>PARRAS VALLEY TOMATOES</h1><div style="font-size:11px;color:#888;">Historial de Embarques — Exportado '+new Date().toLocaleDateString("es-MX")+'</div></div>';
+    html+='<button class="no-print" onclick="window.print()" style="padding:6px 14px;background:#1a3a6a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">Imprimir / Guardar PDF</button>';
+    html+='</div>';
+    hist.forEach(function(e,ei){
+      var cb=e.cab||{};
+      html+='<div class="sep"></div>';
+      html+='<h2>EMBARQUE '+(ei+1)+'</h2>';
+      html+='<div class="info">';
+      if(cb.fecha)html+='<div><div class="lbl">Fecha</div><div class="val">'+cb.fecha+'</div></div>';
+      if(cb.linea)html+='<div><div class="lbl">Linea</div><div class="val">'+cb.linea+'</div></div>';
+      if(cb.cruce)html+='<div><div class="lbl">Cruce</div><div class="val">'+cb.cruce+'</div></div>';
+      if(cb.unidad)html+='<div><div class="lbl">Unidad</div><div class="val">'+cb.unidad+'</div></div>';
+      html+='</div>';
+      // Por manifiesto
+      var manMap={};var manOrder=[];
+      (e.lineas||[]).forEach(function(l){
+        var man=l.manifiesto||"Sin manifiesto";
+        if(!manMap[man])manOrder.push(man);
+        if(!manMap[man])manMap[man]=[];
+        manMap[man].push(l);
+      });
+      manOrder.forEach(function(man){
+        var mTot=manMap[man].reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+        var mPlt=manMap[man].reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+        html+='<h3>Manifiesto: <b>'+man+'</b></h3>';
+        html+='<table><tr><th>Posicion</th><th>Producto</th><th>Presentacion</th><th>Calidad</th><th>Cliente</th><th>Pallets</th><th>Cajas</th></tr>';
+        manMap[man].forEach(function(l){
+          html+='<tr><td>'+(l.posicion||"")+'</td><td>'+(l.producto||"")+'</td><td>'+(l.presentacion||"")+'</td><td>'+(l.calidad||"")+'</td><td>'+(l.cliente||"")+'</td><td style="text-align:center">'+(l.pallets||"")+'</td><td style="text-align:center;font-weight:700">'+(l.cajas||"")+'</td></tr>';
+        });
+        html+='<tr class="tot"><td colspan="5">Subtotal manifiesto '+man+'</td><td style="text-align:center">'+mPlt+' plt</td><td style="text-align:center">'+mTot+' cjs</td></tr>';
+        html+='</table>';
+      });
+      var tot=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+      var plts=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+      html+='<div style="text-align:right;font-weight:700;font-size:13px;color:#1a3a6a;margin-top:4px;">TOTAL: '+plts+' pallets / '+tot+' cajas</div>';
+    });
+    html+='</body></html>';
+    var blob=new Blob([html],{type:"text/html;charset=utf-8"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url;a.target="_blank";
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  }
+
+  function abrirVistaCom(emb){
+    var e=emb;var cd=e.cab||{};
+    var lineas=e.lineas||[];
+    var tot=lineas.reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+    var plts=lineas.reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+    // Agrupar por manifiesto -> posicion -> cliente
+    var manMap={};var manOrder=[];
+    lineas.forEach(function(l){
+      var man=l.manifiesto||"Sin manifiesto";
+      var pos=l.posicion||"Sin posicion";
+      var cli=l.cliente||"Sin cliente";
+      if(!manMap[man]){manMap[man]={};manOrder.push(man);}
+      if(!manMap[man][pos]){manMap[man][pos]={};}
+      if(!manMap[man][pos][cli]){manMap[man][pos][cli]=[];}
+      manMap[man][pos][cli].push(l);
+    });
+    var posOrder=["Termo","Entrega 2","Entrega 3","Entrega 4","Puerta"];
+    var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>';
+    html+='*{box-sizing:border-box;margin:0;padding:0;}';
+    html+='body{background:#08121f;color:#f0f4ff;font-family:system-ui,sans-serif;padding:8px;}';
+    html+='@media print{@page{size:landscape;margin:5mm;}}@media screen{.card{max-width:100%;}}'
+    html+='.card{background:#0a1628;border:2px solid #1a3a6a;border-radius:12px;overflow:hidden;max-width:420px;margin:0 auto;}';
+    html+='.hdr{background:#0f2040;padding:10px 12px;border-bottom:2px solid #1a3a6a;}';
+    html+='.hdr-title{font-size:9px;font-weight:900;color:#2a5090;letter-spacing:3px;margin-bottom:6px;}';
+    html+='.hdr-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}';
+    html+='.hdr-cell{background:rgba(0,0,0,.4);border-radius:5px;padding:5px 8px;}';
+    html+='.hdr-lbl{font-size:7px;font-weight:900;color:#2a5090;letter-spacing:1.5px;margin-bottom:1px;}';
+    html+='.hdr-val{font-size:16px;font-weight:900;color:#fff;}';
+    html+='.man-hdr{background:rgba(255,255,255,.09);padding:5px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);}';
+    html+='.man-lbl{font-size:7px;font-weight:900;color:rgba(255,255,255,.4);letter-spacing:1.5px;}';
+    html+='.man-num{font-size:16px;font-weight:900;color:#fff;}';
+    html+='.man-tot{font-size:14px;font-weight:900;color:#60a5fa;font-family:Georgia,serif;}';
+    html+='.pos-hdr{padding:4px 10px;display:flex;align-items:center;gap:5px;border-bottom:1px solid rgba(255,255,255,.05);}';
+    html+='.pos-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}';
+    html+='.pos-lbl{font-size:10px;font-weight:900;letter-spacing:1px;}';
+    html+='.cli-row{display:flex;border-bottom:1px solid rgba(255,255,255,.04);}';
+    html+='.cli-col{min-width:44px;max-width:44px;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:4px 2px;border-right:3px solid;}';
+    html+='.cli-name{font-size:9px;font-weight:900;writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;max-height:100px;overflow:hidden;}';
+    html+='.cli-tot{font-size:8px;font-weight:900;writing-mode:vertical-rl;transform:rotate(180deg);margin-top:3px;}';
+    html+='.prod-row{display:flex;align-items:center;padding:5px 8px;background:rgba(0,0,0,.15);border-bottom:1px solid rgba(255,255,255,.03);}';
+    html+='.prod-bar{width:4px;align-self:stretch;border-radius:2px;flex-shrink:0;margin-right:7px;}';
+    html+='.prod-name{font-size:13px;font-weight:900;line-height:1.1;}';
+    html+='.prod-det{font-size:11px;font-weight:700;color:rgba(255,255,255,.6);line-height:1.2;}';
+    html+='.prod-cjs{font-size:18px;font-weight:900;font-family:Georgia,serif;line-height:1;}';
+    html+='.prod-plt{font-size:8px;color:rgba(255,255,255,.3);}';
+    html+='.total{background:rgba(34,197,94,.1);border-top:1.5px solid rgba(34,197,94,.25);padding:8px 12px;display:flex;justify-content:space-between;align-items:center;}';
+    html+='.total-lbl{font-size:8px;font-weight:900;color:#22c55e;letter-spacing:2px;}';
+    html+='.total-sub{font-size:9px;color:rgba(34,197,94,.5);}';
+    html+='.total-num{font-size:26px;font-weight:900;color:#22c55e;font-family:Georgia,serif;}';
+    html+='</style></head><body><div class="card">';
+    // Header
+    html+='<div class="hdr"><div class="hdr-title">PARRAS VALLEY TOMATOES</div><div class="hdr-grid">';
+    var fijos=[["FECHA",cd.fecha],["CRUCE",cd.cruce],["LINEA",cd.linea],["UNIDAD",cd.unidad]];
+    fijos.forEach(function(f){if(f[1])html+='<div class="hdr-cell"><div class="hdr-lbl">'+f[0]+'</div><div class="hdr-val">'+f[1]+'</div></div>';});
+    html+='</div></div>';
+    // Manifiestos
+    var cliColors=["#3b82f6","#22c55e","#f59e0b","#a855f7","#ef4444","#06b6d4"];
+    var cliMap2={};var ci=0;
+    lineas.forEach(function(l){if(!cliMap2[l.cliente||""]){cliMap2[l.cliente||""]=cliColors[ci%cliColors.length];ci++;}});
+    var posColors={Termo:"#ef4444","Entrega 2":"#f59e0b","Entrega 3":"#f59e0b","Entrega 4":"#f59e0b",Puerta:"#22c55e"};
+    var prodColors={Persa:"#22c55e",Slicer:"#3b82f6",Morron:"#ef4444",Minibel:"#a855f7",Europeo:"#f59e0b"};
+    function getProdColor(prod){var keys=Object.keys(prodColors);for(var k=0;k<keys.length;k++){if(prod&&prod.indexOf(keys[k])>=0)return prodColors[keys[k]];}return"#60a5fa";}
+    html+='<div style="padding:5px 6px;">';
+    manOrder.forEach(function(man,mi){
+      var posMap=manMap[man];
+      var mTot=lineas.filter(function(l){return(l.manifiesto||"Sin manifiesto")===man;}).reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+      var isLast=mi===manOrder.length-1;
+      html+='<div style="margin-bottom:'+(isLast?0:5)+'px;border-radius:8px;overflow:hidden;border:1.5px solid rgba(255,255,255,.12);">';
+      html+='<div class="man-hdr"><div><div class="man-lbl">MANIFIESTO</div><div class="man-num">'+man+'</div></div><div class="man-tot">'+mTot+' <span style="font-size:9px">cjs</span></div></div>';
+      var poss=posOrder.filter(function(p){return posMap[p];});
+      Object.keys(posMap).forEach(function(p){if(poss.indexOf(p)<0)poss.push(p);});
+      poss.forEach(function(pos,pi){
+        var posCol=posColors[pos]||"#8899aa";
+        var isLastPos=pi===poss.length-1;
+        html+='<div style="border-bottom:'+(isLastPos?"none":"1px solid rgba(255,255,255,.05)")+'">';
+        html+='<div class="pos-hdr" style="background:'+posCol+'18;border-bottom:1px solid '+posCol+'33;"><div class="pos-dot" style="background:'+posCol+'"></div><div class="pos-lbl" style="color:'+posCol+'">'+pos.toUpperCase()+'</div></div>';
+        var cliKeys=Object.keys(posMap[pos]);
+        cliKeys.forEach(function(cli,cii){
+          var cc=cliMap2[cli]||"#60a5fa";
+          var items=posMap[pos][cli];
+          var cTot=items.reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+          var isLastCli=cii===cliKeys.length-1;
+          html+='<div class="cli-row" style="border-bottom:'+(isLastCli?"none":"1px solid rgba(255,255,255,.04)")+'">';
+          html+='<div class="cli-col" style="background:'+cc+'18;border-color:'+cc+'"><div class="cli-name" style="color:'+cc+'">'+cli+'</div><div class="cli-tot" style="color:'+cc+'88">'+cTot+'cjs</div></div>';
+          html+='<div style="flex:1">';
+          items.forEach(function(l,li){
+            var pc=getProdColor(l.producto);
+            var notLast=li<items.length-1;
+            html+='<div class="prod-row" style="border-bottom:'+(notLast?"1px solid rgba(255,255,255,.03)":"none")+'">';
+            html+='<div class="prod-bar" style="background:'+pc+'"></div>';
+            html+='<div style="flex:1;min-width:0"><div class="prod-name" style="color:'+pc+'">'+(l.producto||"")+'</div>';
+            html+='<div class="prod-det">'+(l.presentacion||"")+' · '+(l.calidad||"")+'</div></div>';
+            html+='<div style="text-align:right;flex-shrink:0;margin-left:6px"><div class="prod-cjs" style="color:'+pc+'">'+(l.cajas||0)+'<span style="font-size:8px;margin-left:2px">cjs</span></div>';
+            if(l.pallets)html+='<div class="prod-plt">'+(l.pallets)+' plt</div>';
+            html+='</div></div>';
+          });
+          html+='</div></div>';
+        });
+        html+='</div>';
+      });
+      html+='</div>';
+    });
+    html+='</div>';
+    html+='<div class="total"><div><div class="total-lbl">TOTAL EMBARQUE</div><div class="total-sub">'+plts+'plt · '+manOrder.length+' manifiesto'+(manOrder.length!==1?'s':'')+'</div></div><div class="total-num">'+tot+'<span style="font-size:11px;margin-left:3px">cjs</span></div></div>';
+    html+='</div></body></html>';
+    var w=window.open("","_blank","width=450,height=700");
+    if(w){w.document.write(html);w.document.close();setTimeout(function(){w.print();},500);}
+  }
+
+  function guardarCabEditada(embId){
+    if(!editCabData)return;
+    var actualizado=hist.map(function(e){
+      if(e.id!==embId)return e;
+      return Object.assign({},e,{cab:Object.assign({},editCabData)});
+    });
+    fbSet(EMBAR_KEY,actualizado).then(function(){
+      setHist(actualizado);
+      var det=actualizado.filter(function(e){return e.id===embId;})[0]||null;
+      setDetalle(det);setEditCab(false);setEditCabData(null);
+    });
+  }
+
+  function borrarEmb(id){
+    if(!window.confirm("Borrar este embarque?"))return;
+    var nueva=hist.filter(function(e){return e.id!==id;});
+    fbSet(EMBAR_KEY,nueva).then(function(){setHist(nueva);setDetalle(null);setFase("hist");});
+  }
+
+  function editarEmb(emb){
+    setCab(Object.assign({},emb.cab||{}));
+    setLineas((emb.lineas||[]).concat([initLinea()]));
+    setEditId(emb.id);
+    setDetalle(null);
+    setFase("lineas");
+  }
+
+  function guardarEdicion(){
+    if(!lineas.filter(function(l){return parseInt(l.cajas)>0;}).length){
+      setErrMsg("Agrega al menos una linea");setTimeout(function(){setErrMsg(null);},3000);return;
+    }
+    var val=lineas.filter(function(l){return parseInt(l.cajas)>0;});
+    var actualizado=hist.map(function(e){
+      if(e.id!==editId)return e;
+      return Object.assign({},e,{cab:Object.assign({},cab),lineas:val});
+    });
+    fbSet(EMBAR_KEY,actualizado).then(function(){
+      setHist(actualizado);
+      var det=actualizado.filter(function(e){return e.id===editId;})[0]||null;
+      setEditId(null);setCab(initCab());setLineas([initLinea()]);
+      setDetalle(det);setFase(det?"resumen":"hist");
+    });
+  }
+
+  function guardarLineaEditada(embId){
+    if(!editLineaData)return;
+    var actualizado=hist.map(function(e){
+      if(e.id!==embId)return e;
+      var nl=e.lineas.map(function(l,i){return i===editLineaIdx?Object.assign({},editLineaData):l;});
+      return Object.assign({},e,{lineas:nl});
+    });
+    fbSet(EMBAR_KEY,actualizado).then(function(){
+      setHist(actualizado);
+      var det=actualizado.filter(function(e){return e.id===embId;})[0]||null;
+      setDetalle(det);setEditLineaIdx(null);setEditLineaData(null);
+    });
+  }
+
+  function eliminarLinea(embId,lineaIdx){
+    if(!window.confirm("Eliminar esta linea del embarque?"))return;
+    var actualizado=hist.map(function(e){
+      if(e.id!==embId)return e;
+      return Object.assign({},e,{lineas:e.lineas.filter(function(_,i){return i!==lineaIdx;})});
+    });
+    fbSet(EMBAR_KEY,actualizado).then(function(){
+      setHist(actualizado);
+      var det=actualizado.filter(function(e){return e.id===embId;})[0]||null;
+      setDetalle(det);
+    });
+  }
+
+  var inp={background:"rgba(0,0,0,.4)",border:"2px solid #1a3060",borderRadius:10,padding:"11px 13px",color:"#f0f4ff",fontFamily:"system-ui",fontSize:14,fontWeight:700,outline:"none",WebkitAppearance:"none",appearance:"none",width:"100%"};
+
+  // ── TARJETA DESKTOP ─────────────────────────────────────────────────
+  var CLI_COLS=["#3b82f6","#22c55e","#f59e0b","#a855f7","#ef4444","#06b6d4","#f97316","#84cc16"];
+  var POS_ORDER=["Termo","Entrega 2","Entrega 3","Entrega 4","Puerta"];
+  var POS_COL={Termo:"#ef4444","Entrega 2":"#f59e0b","Entrega 3":"#f59e0b","Entrega 4":"#f59e0b",Puerta:"#22c55e"};
+
+  function TarjetaDetalle(props){
+    var e=props.emb;var cd=e.cab||{};
+    var lineas=e.lineas||[];
+    var tot=lineas.reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+    var plts=lineas.reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+
+    // Color por cliente
+    var cliColorMap={};var cliIdx=0;
+    lineas.forEach(function(l){
+      if(!cliColorMap[l.cliente||""]){cliColorMap[l.cliente||""]=CLI_COLS[cliIdx%CLI_COLS.length];cliIdx++;}
+    });
+
+    // Agrupar por manifiesto → posicion → cliente
+    var manMap={};var manOrder=[];
+    lineas.forEach(function(l){
+      var man=l.manifiesto||"Sin manifiesto";
+      var pos=l.posicion||"Sin posicion";
+      var cli=l.cliente||"Sin cliente";
+      if(!manMap[man]){manMap[man]={};manOrder.push(man);}
+      if(!manMap[man][pos]){manMap[man][pos]={};}
+      if(!manMap[man][pos][cli]){manMap[man][pos][cli]=[];}
+      manMap[man][pos][cli].push(l);
+    });
+
+    return(
+      <div style={{background:"#08121f",border:"2px solid #1a3a6a",borderRadius:16,overflow:"hidden",width:"100%"}}>
+
+        {/* HEADER — centrado */}
+        <div style={{background:"linear-gradient(135deg,#0f2a50,#0a1628)",padding:"18px 28px",borderBottom:"2px solid #1a3a6a",textAlign:"center"}}>
+          <div style={{fontSize:10,fontWeight:900,color:"#2a5090",letterSpacing:3,marginBottom:4}}>PARRAS VALLEY TOMATOES</div>
+          <div style={{fontSize:26,fontWeight:900,color:"#f0f4ff",letterSpacing:.5,marginBottom:14}}>REPORTE DE EMBARQUE</div>
+          {!editCab?(
+            <div>
+              <div style={{display:"flex",justifyContent:"center",gap:12,flexWrap:"wrap",marginBottom:10}}>
+                {[["FECHA",cd.fecha],["CRUCE",cd.cruce],["LINEA",cd.linea],["UNIDAD",cd.unidad]].map(function(f){return f[1]?(
+                  <div key={f[0]} style={{textAlign:"center",background:"rgba(0,0,0,.3)",borderRadius:8,padding:"8px 18px",minWidth:90}}>
+                    <div style={{fontSize:8,fontWeight:900,color:"#2a5090",letterSpacing:2,marginBottom:3}}>{f[0]}</div>
+                    <div style={{fontSize:16,fontWeight:900,color:"#fff"}}>{f[1]}</div>
+                  </div>
+                ):null;})}
+              </div>
+              <button onClick={function(){setEditCab(true);setEditCabData(Object.assign({},cd));}} style={{padding:"5px 16px",background:"rgba(59,130,246,.12)",border:"1px solid rgba(59,130,246,.35)",borderRadius:7,color:"#60a5fa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Editar datos del viaje</button>
+            </div>
+          ):(
+            <div style={{background:"rgba(59,130,246,.08)",border:"1px solid rgba(59,130,246,.3)",borderRadius:10,padding:"14px",maxWidth:600,margin:"0 auto",textAlign:"left"}}>
+              <div style={{fontSize:10,fontWeight:900,color:"#60a5fa",letterSpacing:1.5,marginBottom:10,textAlign:"center"}}>EDITAR DATOS DEL VIAJE</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                {(function(){var sinpC={background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.25)",borderRadius:6,padding:"6px 10px",color:"#fff",fontFamily:"system-ui",fontSize:13,fontWeight:700,outline:"none",WebkitAppearance:"none",appearance:"none",width:"100%"};return(<React.Fragment>
+                  <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>FECHA</div>
+                    <input type="date" style={sinpC} value={editCabData&&editCabData.fecha||""} onChange={function(ev){var v=ev.target.value;setEditCabData(function(f){return Object.assign({},f,{fecha:v});});}}/>
+                  </div>
+                  <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>CRUCE</div>
+                    <select style={sinpC} value={editCabData&&editCabData.cruce||""} onChange={function(ev){var v=ev.target.value;setEditCabData(function(f){return Object.assign({},f,{cruce:v});})}}>
+                      <option value="">--</option>{CRUCES.map(function(cr){return <option key={cr}>{cr}</option>;})}
+                    </select>
+                  </div>
+                  <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>LINEA DE TRANSPORTE</div>
+                    <select style={sinpC} value={editCabData&&editCabData.linea||""} onChange={function(ev){var v=ev.target.value;setEditCabData(function(f){return Object.assign({},f,{linea:v});})}}>
+                      <option value="">--</option>{llista.map(function(l){return <option key={l}>{l}</option>;})}
+                    </select>
+                  </div>
+                  <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>UNIDAD</div>
+                    <input style={sinpC} value={editCabData&&editCabData.unidad||""} onChange={function(ev){var v=ev.target.value;setEditCabData(function(f){return Object.assign({},f,{unidad:v});});}}/>
+                  </div>
+                </React.Fragment>);})()}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={function(){guardarCabEditada(props.emb.id);}} style={{flex:2,padding:"9px",background:"rgba(34,197,94,.2)",border:"2px solid rgba(34,197,94,.5)",borderRadius:7,color:"#22c55e",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>Guardar datos del viaje</button>
+                <button onClick={function(){setEditCab(false);setEditCabData(null);}} style={{flex:1,padding:"9px",background:"transparent",border:"1px solid rgba(255,255,255,.15)",borderRadius:7,color:"#8899aa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Cancelar</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* MANIFIESTOS — lado a lado en desktop */}
+        <div style={{display:"grid",gridTemplateColumns:manOrder.length>1?"1fr 1fr":"1fr",gap:0}}>
+          {manOrder.map(function(man,mi){
+            var posMap=manMap[man];
+            var mTot=lineas.filter(function(l){return(l.manifiesto||"Sin manifiesto")===man;}).reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+            var mPlt=lineas.filter(function(l){return(l.manifiesto||"Sin manifiesto")===man;}).reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+            var notLast=mi<manOrder.length-1;
+            var posiciones=POS_ORDER.filter(function(p){return posMap[p];});
+            Object.keys(posMap).forEach(function(p){if(posiciones.indexOf(p)<0)posiciones.push(p);});
+
+            return(
+              <div key={man} style={{borderRight:notLast?"2px solid #1a3a6a":"none"}}>
+                {/* Header manifiesto */}
+                <div style={{background:"rgba(255,255,255,.07)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid rgba(255,255,255,.08)"}}>
+                  <div>
+                    <div style={{fontSize:9,fontWeight:900,color:"rgba(255,255,255,.4)",letterSpacing:2}}>MANIFIESTO</div>
+                    <div style={{fontSize:22,fontWeight:900,color:"#fff"}}>{man}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:20,fontWeight:900,color:"#60a5fa",fontFamily:"Georgia,serif"}}>{mTot} <span style={{fontSize:12}}>cjs</span></div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>{mPlt} pallets</div>
+                  </div>
+                </div>
+
+                {/* Posiciones */}
+                {posiciones.map(function(pos,pi){
+                  var posCol=POS_COL[pos]||"#8899aa";
+                  var cliMap=posMap[pos];
+                  var isLastPos=pi===posiciones.length-1;
+                  return(
+                    <div key={pos} style={{borderBottom:isLastPos?"none":"1px solid rgba(255,255,255,.05)"}}>
+                      {/* Etiqueta posicion */}
+                      <div style={{background:posCol+"20",padding:"7px 20px",display:"flex",alignItems:"center",gap:8,borderBottom:"1px solid "+posCol+"33"}}>
+                        <div style={{width:10,height:10,borderRadius:"50%",background:posCol,flexShrink:0}}></div>
+                        <div style={{fontSize:12,fontWeight:900,color:posCol,letterSpacing:1.5}}>{pos.toUpperCase()}</div>
+                      </div>
+                      {/* Clientes */}
+                      {Object.keys(cliMap).map(function(cli,cii){
+                        var cliCol=cliColorMap[cli];
+                        var items=cliMap[cli];
+                        var cTot=items.reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+                        var cPlt=items.reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+                        var isLastCli=cii===Object.keys(cliMap).length-1;
+                        return(
+                          <div key={cli} style={{display:"flex",borderBottom:isLastCli?"none":"1px solid rgba(255,255,255,.04)"}}>
+                            {/* Columna cliente */}
+                            <div style={{background:cliCol+"18",borderRight:"4px solid "+cliCol,width:110,flexShrink:0,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"10px 6px"}}>
+                              <div style={{fontSize:13,fontWeight:900,color:cliCol,textAlign:"center",lineHeight:1.2,wordBreak:"break-word"}}>{cli}</div>
+                              <div style={{fontSize:11,color:cliCol+"99",marginTop:4,fontWeight:700}}>{cTot} cjs</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,.3)"}}>{cPlt} plt</div>
+                            </div>
+                            {/* Productos */}
+                            <div style={{flex:1}}>
+                              {items.map(function(l,li){
+                                var pCol=getCol(l.producto);
+                                var pNotLast=li<items.length-1;
+                                var lineaIdxGlobal=props.emb.lineas.indexOf(l);
+                                var esEditando=editLineaIdx===lineaIdxGlobal;
+                                var ed=esEditando?editLineaData:null;
+                                var edPInfo=ed?PRODS[ed.producto]||{pres:[],cals:[]}:{pres:[],cals:[]};
+                                var sinpE={background:"rgba(0,0,0,.5)",border:"1px solid rgba(255,255,255,.25)",borderRadius:6,padding:"5px 8px",color:"#fff",fontFamily:"system-ui",fontSize:12,fontWeight:700,outline:"none",WebkitAppearance:"none",appearance:"none",width:"100%"};
+                                return(
+                                  <div key={li} style={{borderBottom:pNotLast?"1px solid rgba(255,255,255,.04)":"none"}}>
+                                    {!esEditando?(
+                                      <div style={{display:"flex",alignItems:"center",padding:"10px 16px",background:"rgba(0,0,0,.15)"}}>
+                                        <div style={{width:5,alignSelf:"stretch",background:pCol.text,borderRadius:2,flexShrink:0,marginRight:12}}></div>
+                                        <div style={{flex:1}}>
+                                          <div style={{fontSize:15,fontWeight:900,color:pCol.text}}>{l.producto}</div>
+                                          <div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginTop:2}}>{l.presentacion} <span style={{color:pCol.text,fontWeight:700}}>· {l.calidad}</span></div>
+                                          <div style={{fontSize:11,color:"rgba(255,255,255,.3)",marginTop:1}}>Man: {l.manifiesto||"—"} · {l.posicion||"Sin posicion"}</div>
+                                        </div>
+                                        <div style={{textAlign:"right",marginLeft:16}}>
+                                          <div style={{fontSize:26,fontWeight:900,color:pCol.text,fontFamily:"Georgia,serif",lineHeight:1}}>{l.cajas}</div>
+                                          <div style={{fontSize:10,color:"rgba(255,255,255,.4)"}}>cajas · {l.pallets||0} plt</div>
+                                        </div>
+                                        <div style={{display:"flex",flexDirection:"column",gap:4,marginLeft:14,flexShrink:0}}>
+                                          <button onClick={function(){setEditLineaIdx(lineaIdxGlobal);setEditLineaData(Object.assign({},l));}} style={{padding:"5px 12px",background:"rgba(59,130,246,.15)",border:"1px solid rgba(59,130,246,.4)",borderRadius:6,color:"#60a5fa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Editar</button>
+                                          <button onClick={function(){eliminarLinea(props.emb.id,lineaIdxGlobal);}} style={{padding:"5px 12px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.3)",borderRadius:6,color:"#ef4444",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Quitar</button>
+                                        </div>
+                                      </div>
+                                    ):(
+                                      <div style={{background:"rgba(59,130,246,.07)",borderLeft:"4px solid #3b82f6",padding:"14px 18px"}}>
+                                        <div style={{fontSize:10,fontWeight:900,color:"#60a5fa",letterSpacing:1.5,marginBottom:10}}>EDITANDO ESTA LINEA</div>
+                                        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:10}}>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>MANIFIESTO</div>
+                                            <input style={sinpE} value={ed.manifiesto||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{manifiesto:v});});}}/>
+                                          </div>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>POSICION</div>
+                                            <select style={sinpE} value={ed.posicion||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{posicion:v});});}}>
+                                              <option value="">--</option>
+                                              <option>Termo</option><option>Entrega 2</option><option>Entrega 3</option><option>Entrega 4</option><option>Puerta</option>
+                                            </select>
+                                          </div>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>CLIENTE</div>
+                                            <input style={sinpE} value={ed.cliente||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{cliente:v});});}}/>
+                                          </div>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>PRODUCTO</div>
+                                            <select style={sinpE} value={ed.producto||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{producto:v,presentacion:"",calidad:""});});}}>
+                                              <option value="">--</option>
+                                              {Object.keys(PRODS).map(function(p){return <option key={p}>{p}</option>;})}
+                                            </select>
+                                          </div>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>PRESENTACION</div>
+                                            <select style={sinpE} value={ed.presentacion||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{presentacion:v,calidad:""});});}}>
+                                              <option value="">--</option>
+                                              {edPInfo.pres.map(function(p){return <option key={p}>{p}</option>;})}
+                                            </select>
+                                          </div>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>CALIDAD / TAMAÑO</div>
+                                            <select style={sinpE} value={ed.calidad||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{calidad:v});});}}>
+                                              <option value="">--</option>
+                                              {getCals(ed.producto,ed.presentacion).map(function(cc){return <option key={cc}>{cc}</option>;})}
+                                            </select>
+                                          </div>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>PALLETS</div>
+                                            <input style={sinpE} type="number" value={ed.pallets||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{pallets:v});});}}/>
+                                          </div>
+                                          <div><div style={{fontSize:9,color:"#8899aa",fontWeight:700,marginBottom:3}}>CAJAS</div>
+                                            <input style={sinpE} type="number" value={ed.cajas||""} onChange={function(ev){var v=ev.target.value;setEditLineaData(function(f){return Object.assign({},f,{cajas:v});});}}/>
+                                          </div>
+                                        </div>
+                                        <div style={{display:"flex",gap:8}}>
+                                          <button onClick={function(){guardarLineaEditada(props.emb.id);}} style={{flex:2,padding:"9px",background:"rgba(34,197,94,.2)",border:"2px solid rgba(34,197,94,.5)",borderRadius:7,color:"#22c55e",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>Guardar cambio</button>
+                                          <button onClick={function(){setEditLineaIdx(null);setEditLineaData(null);}} style={{flex:1,padding:"9px",background:"transparent",border:"1px solid rgba(255,255,255,.15)",borderRadius:7,color:"#8899aa",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Cancelar</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* TOTAL GENERAL */}
+        <div style={{background:"linear-gradient(90deg,rgba(34,197,94,.18),rgba(34,197,94,.06))",borderTop:"2px solid rgba(34,197,94,.3)",padding:"14px 28px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:900,color:"#22c55e",letterSpacing:3}}>TOTAL DEL EMBARQUE</div>
+            <div style={{fontSize:13,color:"rgba(34,197,94,.6)"}}>{plts} pallets · {manOrder.length} manifiesto{manOrder.length!==1?"s":""}</div>
+          </div>
+          <div style={{fontSize:42,fontWeight:900,color:"#22c55e",fontFamily:"Georgia,serif",lineHeight:1}}>{tot} <span style={{fontSize:18}}>cajas</span></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── NAVEGACIÓN CON DOS PESTAÑAS ─────────────────────────────────────
+  var pInfo=PRODS[lForm.producto]||{pres:[],cals:[]};
+  var colForm=getCol(lForm.producto);
+  var totalCajas=lineas.reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+  var tabActivo=fase==="hist"&&!detalle?"hist":"captura";
+
+  function irHist(){setFase("hist");setDetalle(null);setEditLineaIdx(null);setEditLineaData(null);setEditCab(false);setEditCabData(null);}
+  function irCaptura(){if(fase==="hist"&&!detalle)setFase("header");}
+
+  return(
+    <div style={{background:"#060d1a",minHeight:"100vh"}}>
+
+      {/* BARRA SUPERIOR */}
+      <div style={{background:"#090f1e",borderBottom:"2px solid #0f2040",padding:"0 24px",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:12,paddingBottom:0}}>
+          <div>
+            <div style={{fontSize:18,fontWeight:900,color:"#f0f4ff"}}>Control de Embarques</div>
+            <div style={{fontSize:8,color:"#1a4080",letterSpacing:3,fontWeight:900}}>PARRAS VALLEY TOMATOES</div>
+          </div>
+          <div style={{fontSize:11,color:"#2a5090"}}>{hist.length} embarques registrados</div>
+        </div>
+        {/* PESTAÑAS */}
+        <div style={{display:"flex",gap:0,marginTop:10}}>
+          {[["captura","✏️  Captura"],["hist","📋  Historial"]].map(function(t){
+            var activo=tabActivo===t[0];
+            return(
+              <button key={t[0]} onClick={function(){if(t[0]==="hist")irHist();else{if(fase==="hist")setFase("header");}}}
+                style={{padding:"10px 28px",background:activo?"#3b82f6":"transparent",border:"none",borderBottom:activo?"3px solid #60a5fa":"3px solid transparent",color:activo?"#fff":"#2a5090",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"system-ui",letterSpacing:.5,transition:"all .15s"}}>
+                {t[1]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{padding:"20px 24px 40px",maxWidth:1200,margin:"0 auto"}}>
+
+        {/* ── PESTAÑA HISTORIAL ── */}
+        {tabActivo==="hist"&&!detalle&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                <span className="lbl" style={{color:"#1a4080"}}>Filtrar por fecha:</span>
+                <input className="inp" placeholder="2026-07-18" value={filtF} onChange={function(e){setFiltF(e.target.value);}} style={{fontSize:13,padding:"7px 12px",width:160}}/>
+              </div>
+              <div style={{display:"flex",gap:10}}>
+                {hist.length>0&&<button onClick={exportCSV} style={{padding:"9px 20px",background:"rgba(167,139,250,.1)",border:"2px solid rgba(167,139,250,.35)",borderRadius:9,color:"#a78bfa",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>Exportar a Excel ({hist.length})</button>}
+                <button onClick={function(){setFase("header");}} style={{padding:"9px 20px",background:"rgba(34,197,94,.15)",border:"2px solid rgba(34,197,94,.45)",borderRadius:9,color:"#22c55e",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>+ Nuevo embarque</button>
+              </div>
+            </div>
+            {hist.length===0&&<div style={{textAlign:"center",padding:60,color:"#1a3060",fontSize:16,fontWeight:700}}>Sin embarques registrados</div>}
+            {hist.length>0&&(
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead>
+                    <tr style={{background:"rgba(59,130,246,.15)",borderBottom:"2px solid rgba(59,130,246,.3)"}}>
+                      {["Fecha","Linea","Unidad","Cruce","Manifiestos","Productos","Pallets","Cajas","Acciones"].map(function(h){return(
+                        <th key={h} style={{padding:"10px 12px",textAlign:"left",fontWeight:900,color:"#60a5fa",fontSize:11,letterSpacing:1,whiteSpace:"nowrap"}}>{h.toUpperCase()}</th>
+                      );})}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(filtF?hist.filter(function(e){return(e.cab&&e.cab.fecha||"").indexOf(filtF)>=0;}):hist).map(function(e,ri){
+                      var cb=e.cab||{};
+                      var tot=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.cajas)||0);},0);
+                      var plt=(e.lineas||[]).reduce(function(s,l){return s+(parseInt(l.pallets)||0);},0);
+                      var mans=[...new Set((e.lineas||[]).map(function(l){return l.manifiesto||"";}).filter(Boolean))];
+                      var prods={};(e.lineas||[]).forEach(function(l){if(!prods[l.producto])prods[l.producto]=0;prods[l.producto]+=parseInt(l.cajas)||0;});
+                      return(
+                        <tr key={e.id} style={{background:ri%2===0?"rgba(255,255,255,.02)":"rgba(255,255,255,.01)",borderBottom:"1px solid #0f2040",cursor:"pointer"}}
+                          onMouseEnter={function(ev){ev.currentTarget.style.background="rgba(59,130,246,.08)";}}
+                          onMouseLeave={function(ev){ev.currentTarget.style.background=ri%2===0?"rgba(255,255,255,.02)":"rgba(255,255,255,.01)";}}>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px",fontWeight:900,color:"#f0f4ff",whiteSpace:"nowrap"}}>{cb.fecha||"—"}</td>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px",color:"#60a5fa"}}>{cb.linea||"—"}</td>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px",color:"#8899bb"}}>{cb.unidad||"—"}</td>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px",color:"#8899bb"}}>{cb.cruce||"—"}</td>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px"}}>{mans.map(function(m){return(<span key={m} style={{display:"inline-block",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",borderRadius:5,padding:"1px 7px",marginRight:4,fontSize:11,fontWeight:700,color:"#fff"}}>{m}</span>);})}</td>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px"}}><div style={{display:"flex",flexWrap:"wrap",gap:3}}>{Object.keys(prods).map(function(p){var col=getCol(p);return(<span key={p} style={{fontSize:10,fontWeight:800,color:col.text,background:col.bg,border:"1px solid "+col.border,borderRadius:5,padding:"1px 6px"}}>{p}: {prods[p]}</span>);})}</div></td>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px",textAlign:"center",fontWeight:700,color:"#8899bb"}}>{plt}</td>
+                          <td onClick={function(){setDetalle(e);}} style={{padding:"10px 12px",textAlign:"center",fontSize:16,fontWeight:900,color:"#3b82f6",fontFamily:"Georgia,serif"}}>{tot}</td>
+                          <td style={{padding:"8px 10px",whiteSpace:"nowrap"}}>
+                            <div style={{display:"flex",gap:5}}>
+                              <button onClick={function(ev){ev.stopPropagation();setDetalle(e);}} style={{padding:"5px 10px",background:"rgba(59,130,246,.15)",border:"1px solid rgba(59,130,246,.3)",borderRadius:6,color:"#60a5fa",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Ver</button>
+                              <button onClick={function(ev){ev.stopPropagation();editarEmb(e);}} style={{padding:"5px 10px",background:"rgba(59,130,246,.08)",border:"1px solid rgba(59,130,246,.25)",borderRadius:6,color:"#60a5fa",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Editar</button>
+                              <button onClick={function(ev){ev.stopPropagation();borrarEmb(e.id);}} style={{padding:"5px 10px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.2)",borderRadius:6,color:"#ef4444",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Borrar</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── DETALLE DESDE HISTORIAL ── */}
+        {tabActivo==="hist"&&detalle&&(
+          <div>
+            <button onClick={irHist} style={{padding:"9px 18px",background:"rgba(255,255,255,.05)",border:"1.5px solid #1a3060",borderRadius:9,color:"#8899bb",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"system-ui",marginBottom:16}}>← Regresar al historial</button>
+            <TarjetaDetalle emb={detalle}/>
+            <div style={{display:"flex",gap:10,marginTop:14}}>
+              <button onClick={function(){abrirVistaCom(detalle);}} style={{flex:2,padding:"12px",background:"rgba(34,197,94,.15)",border:"2px solid rgba(34,197,94,.4)",borderRadius:10,color:"#22c55e",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>Compartir / Imprimir</button>
+              <button onClick={function(){editarEmb(detalle);}} style={{flex:1,padding:"12px",background:"rgba(59,130,246,.1)",border:"1.5px solid rgba(59,130,246,.35)",borderRadius:10,color:"#60a5fa",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>Editar embarque</button>
+              <button onClick={function(){borrarEmb(detalle.id);}} style={{flex:1,padding:"12px",background:"rgba(239,68,68,.06)",border:"1.5px solid rgba(239,68,68,.25)",borderRadius:10,color:"#ef4444",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>Borrar</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── PESTAÑA CAPTURA: DATOS FIJOS ── */}
+        {tabActivo==="captura"&&fase==="header"&&(
+          <div style={{maxWidth:600,margin:"0 auto"}}>
+            <div style={{fontSize:16,fontWeight:900,color:"#f0f4ff",marginBottom:4}}>Datos del viaje</div>
+            <div style={{fontSize:11,color:"rgba(59,130,246,.45)",marginBottom:16}}>Estos datos son iguales para todo el embarque</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div style={{gridColumn:"span 2"}}>
+                <span className="lbl" style={{color:"#3b6aaa"}}>Fecha</span>
+                <input style={inp} type="date" value={cab.fecha} onChange={function(e){setCabF("fecha",e.target.value);}}/>
+              </div>
+              <div>
+                <span className="lbl" style={{color:"#3b6aaa"}}>Linea de transporte</span>
+                <select style={inp} value={cab.linea} onChange={function(e){setCabF("linea",e.target.value);}}>
+                  <option value="">-- Seleccionar --</option>
+                  {llista.map(function(l){return <option key={l}>{l}</option>;})}
+                </select>
+              </div>
+              <div>
+                <span className="lbl" style={{color:"#3b6aaa"}}>Unidad</span>
+                <input style={inp} placeholder="Clave del camion" value={cab.unidad} onChange={function(e){setCabF("unidad",e.target.value);}}/>
+              </div>
+              <div style={{gridColumn:"span 2"}}>
+                <span className="lbl" style={{color:"#3b6aaa"}}>Cruce fronterizo</span>
+                <select style={inp} value={cab.cruce} onChange={function(e){setCabF("cruce",e.target.value);}}>
+                  <option value="">-- Seleccionar --</option>
+                  {CRUCES.map(function(c){return <option key={c}>{c}</option>;})}
+                </select>
+              </div>
+            </div>
+            {errMsg&&<div style={{marginTop:10,padding:"9px 12px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,color:"#ef4444",fontSize:12,fontWeight:700}}>{errMsg}</div>}
+            <button onClick={iniciarEmbarque} style={{width:"100%",marginTop:16,padding:"14px",background:"rgba(59,130,246,.18)",border:"2px solid rgba(59,130,246,.5)",borderRadius:11,color:"#60a5fa",fontSize:16,fontWeight:900,cursor:"pointer",fontFamily:"system-ui",letterSpacing:.5}}>Iniciar embarque →</button>
+            <button onClick={irHist} style={{width:"100%",marginTop:8,padding:"12px",background:"rgba(255,255,255,.04)",border:"1.5px solid #1a3060",borderRadius:10,color:"#8899bb",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>← Regresar al historial</button>
+          </div>
+        )}
+
+        {/* ── PESTAÑA CAPTURA: AGREGAR LÍNEAS ── */}
+        {tabActivo==="captura"&&fase==="lineas"&&(
+          <div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14,padding:"10px 14px",background:"rgba(59,130,246,.06)",border:"1px solid rgba(59,130,246,.15)",borderRadius:10}}>
+              <span style={{fontSize:10,fontWeight:900,color:"#2a5090",marginRight:4,alignSelf:"center"}}>DATOS DEL VIAJE:</span>
+              {[cab.fecha,cab.linea,cab.unidad&&"Unidad: "+cab.unidad,cab.cruce].filter(Boolean).map(function(v,i){return(
+                <span key={i} style={{fontSize:12,fontWeight:800,color:"#60a5fa",background:"rgba(59,130,246,.12)",border:"1px solid rgba(59,130,246,.2)",borderRadius:6,padding:"3px 10px"}}>{v}</span>
+              );})}
+              <button onClick={function(){setFase("header");}} style={{marginLeft:"auto",padding:"3px 10px",background:"transparent",border:"1px solid #1a3060",borderRadius:6,color:"#2a5090",fontSize:11,cursor:"pointer",fontFamily:"system-ui",fontWeight:700}}>← Editar datos</button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16,maxWidth:600}}>
+              <div>
+                <span className="lbl" style={{color:lForm.manifiesto?"#f0f4ff":"#2a5090"}}>No. Manifiesto</span>
+                <input style={Object.assign({},inp,{borderColor:lForm.manifiesto?"rgba(255,255,255,.5)":"#1a3060",fontSize:16,fontWeight:900,textAlign:"center"})} placeholder="Ej: 10234" value={lForm.manifiesto||""} onChange={function(e){setLF("manifiesto",e.target.value);}}/>
+              </div>
+              <div>
+                <span className="lbl" style={{color:lForm.posicion?POS_COL[lForm.posicion]||"#f0f4ff":"#2a5090"}}>Posicion en trailer</span>
+                <select style={Object.assign({},inp,{borderColor:lForm.posicion?POS_COL[lForm.posicion]:"#1a3060",color:lForm.posicion?POS_COL[lForm.posicion]:"#f0f4ff",fontWeight:900})} value={lForm.posicion||""} onChange={function(e){setLF("posicion",e.target.value);}}>
+                  <option value="">-- --</option>
+                  <option value="Termo">Termo</option>
+                  <option value="Entrega 2">Entrega 2</option>
+                  <option value="Entrega 3">Entrega 3</option>
+                  <option value="Entrega 4">Entrega 4</option>
+                  <option value="Puerta">Puerta</option>
+                </select>
+              </div>
+              <div style={{gridColumn:"span 2"}}>
+                <span className="lbl" style={{color:lForm.producto?colForm.text:"#2a5090"}}>Producto</span>
+                <select style={Object.assign({},inp,{borderColor:lForm.producto?colForm.border:"#1a3060"})} value={lForm.producto} onChange={function(e){setLF("producto",e.target.value);}}>
+                  <option value="">-- Seleccionar producto --</option>
+                  {Object.keys(PRODS).map(function(p){return <option key={p}>{p}</option>;})}
+                </select>
+              </div>
+              <div>
+                <span className="lbl" style={{color:lForm.producto?colForm.text:"#2a5090"}}>Presentacion</span>
+                <select style={Object.assign({},inp,{borderColor:lForm.producto?colForm.border:"#1a3060"})} value={lForm.presentacion} onChange={function(e){setLF("presentacion",e.target.value);}}>
+                  <option value="">-- --</option>
+                  {pInfo.pres.map(function(p){return <option key={p}>{p}</option>;})}
+                </select>
+              </div>
+              <div>
+                <span className="lbl" style={{color:lForm.producto?colForm.text:"#2a5090"}}>Calidad / Tamaño</span>
+                <select style={Object.assign({},inp,{borderColor:lForm.producto?colForm.border:"#1a3060"})} value={lForm.calidad} onChange={function(e){setLF("calidad",e.target.value);}}>
+                  <option value="">-- --</option>
+                  {getCals(lForm.producto,lForm.presentacion).map(function(cal){return <option key={cal}>{cal}</option>;})}
+                </select>
+              </div>
+              <div style={{gridColumn:"span 2"}}>
+                <span className="lbl" style={{color:lForm.producto?colForm.text:"#2a5090"}}>Cliente</span>
+                <input style={Object.assign({},inp,{borderColor:lForm.producto?colForm.border:"#1a3060"})} placeholder="Nombre del cliente" value={lForm.cliente} onChange={function(e){setLF("cliente",e.target.value);}}/>
+              </div>
+              <div>
+                <span className="lbl" style={{color:lForm.producto?colForm.text:"#2a5090"}}>Pallets</span>
+                <input style={Object.assign({},inp,{borderColor:lForm.producto?colForm.border:"#1a3060",fontSize:18,textAlign:"center"})} type="number" min="1" placeholder="0" value={lForm.pallets} onChange={function(e){setLF("pallets",e.target.value);}}/>
+              </div>
+              <div>
+                <span className="lbl" style={{color:lForm.producto?colForm.text:"#2a5090"}}>Cajas</span>
+                <input style={Object.assign({},inp,{borderColor:lForm.producto?colForm.border:"#1a3060",fontSize:18,textAlign:"center",color:lForm.producto?colForm.text:"#f0f4ff"})} type="number" min="1" placeholder="0" value={lForm.cajas} onChange={function(e){setLF("cajas",e.target.value);}}/>
+              </div>
+            </div>
+            <button onClick={agregarLinea} style={{padding:"12px 24px",background:lForm.producto?colForm.bg:"rgba(255,255,255,.05)",border:"2px solid "+(lForm.producto?colForm.border:"#1a3060"),borderRadius:10,color:lForm.producto?colForm.text:"#8899aa",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"system-ui",marginBottom:20}}>+ Agregar esta linea</button>
+            {errMsg&&<div style={{marginBottom:10,padding:"9px 12px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.25)",borderRadius:8,color:"#ef4444",fontSize:12,fontWeight:700}}>{errMsg}</div>}
+            {lineas.filter(function(l){return l.cajas;}).length>0&&(
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:900,color:"#2a5090",letterSpacing:1,marginBottom:8}}>LINEAS REGISTRADAS:</div>
+                {lineas.filter(function(l){return l.cajas;}).map(function(l,i){
+                  var col=getCol(l.producto);
+                  return(
+                    <div key={i} style={{display:"flex",alignItems:"center",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.06)",borderRadius:8,padding:"8px 12px",marginBottom:6}}>
+                      <div style={{width:4,alignSelf:"stretch",background:col.text,borderRadius:2,marginRight:10,flexShrink:0}}></div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:900,color:col.text}}>{l.producto}</div>
+                        <div style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{l.presentacion} · {l.calidad} · {l.cliente}{l.manifiesto?" · Man:"+l.manifiesto:""}{l.posicion?" · "+l.posicion:""}</div>
+                      </div>
+                      <div style={{fontSize:16,fontWeight:900,color:col.text,marginRight:12,fontFamily:"Georgia,serif"}}>{l.cajas} cjs</div>
+                      <button onClick={function(){setLineas(function(ls){return ls.filter(function(_,j){return j!==i;});});}} style={{padding:"3px 8px",background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.25)",borderRadius:5,color:"#ef4444",fontSize:11,cursor:"pointer",fontFamily:"system-ui"}}>✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={cerrarEmbarque} style={{flex:2,padding:"14px",background:"rgba(34,197,94,.18)",border:"2px solid rgba(34,197,94,.5)",borderRadius:11,color:"#22c55e",fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>
+                {editId?"Guardar cambios":"Cerrar embarque"} — {totalCajas} cajas
+              </button>
+              <button onClick={function(){if(window.confirm("Cancelar?"))setCab(initCab()),setLineas([]),setLForm(initLinea()),setEditId(null),irHist();}} style={{flex:1,padding:"14px",background:"transparent",border:"1.5px solid rgba(239,68,68,.25)",borderRadius:11,color:"rgba(239,68,68,.6)",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>Cancelar</button>
+            </div>
+          </div>
+        )}
+
+        {/* ── PESTAÑA CAPTURA: RESUMEN TRAS GUARDAR ── */}
+        {tabActivo==="captura"&&(fase==="resumen")&&detalle&&(
+          <div>
+            <TarjetaDetalle emb={detalle}/>
+            <div style={{display:"flex",gap:10,marginTop:14}}>
+              <button onClick={function(){abrirVistaCom(detalle);}} style={{flex:2,padding:"12px",background:"rgba(34,197,94,.15)",border:"2px solid rgba(34,197,94,.4)",borderRadius:10,color:"#22c55e",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>Compartir / Imprimir</button>
+              <button onClick={function(){setFase("header");setDetalle(null);}} style={{flex:1,padding:"12px",background:"rgba(59,130,246,.1)",border:"1.5px solid rgba(59,130,246,.35)",borderRadius:10,color:"#60a5fa",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"system-ui"}}>+ Nuevo embarque</button>
+              <button onClick={irHist} style={{flex:1,padding:"12px",background:"rgba(255,255,255,.04)",border:"1.5px solid #1a3060",borderRadius:10,color:"#8899bb",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"system-ui"}}>← Historial</button>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

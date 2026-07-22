@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Inventario de Cargas - Parras Valley</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#f1f5f9;color:#111;font-family:Arial,sans-serif;min-height:100vh;}
+::-webkit-scrollbar{width:12px;height:12px;}
+::-webkit-scrollbar-track{background:#cbd5e1;}
+::-webkit-scrollbar-thumb{background:#64748b;border-radius:4px;border:2px solid #cbd5e1;}
+.sel{width:100%;background:#fff;border:1.5px solid #94a3b8;border-radius:6px;padding:6px 8px;color:#111;font-family:Arial;font-size:13px;font-weight:700;outline:none;-webkit-appearance:none;appearance:none;}
+.sel:focus{border-color:#059669;}
+.tex{width:100%;background:#fff;border:1.5px solid #94a3b8;border-radius:6px;padding:6px 8px;color:#111;font-family:Arial;font-size:13px;font-weight:700;outline:none;}
+.tex:focus{border-color:#059669;}
+table.main{width:100%;border-collapse:collapse;font-size:11px;}
+table.main th{background:linear-gradient(135deg,#064e3b,#065f46);color:#d1fae5;padding:6px 8px;font-size:10px;font-weight:900;text-align:center;border:1px solid #064e3b;white-space:nowrap;letter-spacing:.5px;position:sticky;top:0;z-index:10;}
+table.main td{padding:3px 7px;border:1px solid rgba(0,0,0,.08);vertical-align:middle;white-space:nowrap;}
+table.main td.num{text-align:center;font-family:Georgia,serif;font-weight:900;}
+table.main td.cen{text-align:center;}
+table.main tr.sep td{height:4px;padding:0;border:none;}
+.bl0{background:#eff6ff;}.bl0b{background:#dbeafe;}
+.bl1{background:#f0fdf4;}.bl1b{background:#dcfce7;}
+.bl2{background:#fffbeb;}.bl2b{background:#fef3c7;}
+.bl3{background:#fdf4ff;}.bl3b{background:#f3e8ff;}
+.bl4{background:#ecfeff;}.bl4b{background:#cffafe;}
+.bl5{background:#fff1f2;}.bl5b{background:#ffe4e6;}
+.btn{padding:6px 14px;border-radius:8px;border:2px solid;font-size:12px;font-weight:900;cursor:pointer;font-family:Arial;transition:all .15s;}
+.bn-blue{background:linear-gradient(135deg,#059669,#047857);border-color:#059669;color:#fff;}
+.bn-green{background:linear-gradient(135deg,#16a34a,#15803d);border-color:#16a34a;color:#fff;}
+.bn-red{background:transparent;border-color:#ef4444;color:#ef4444;}
+.bn-gray{background:transparent;border-color:#94a3b8;color:#475569;}
+.tab{padding:10px 24px;border:none;border-bottom:3px solid transparent;font-size:14px;font-weight:900;cursor:pointer;font-family:Arial;background:transparent;color:#6b7280;}
+.tab.act{color:#059669;border-bottom-color:#059669;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+var useState=React.useState;
+var useEffect=React.useEffect;
+var FB="https://parrasvalley-default-rtdb.firebaseio.com";
+var KEY="carga-lineas-v1";
+var LCLAVE="carga-llista-v1";
+var HCLAVE="carga-historial-v1";
+function fbGet(k){return fetch(FB+"/"+k+".json").then(function(r){return r.json();}).catch(function(){return null;});}
+function fbSet(k,v){return fetch(FB+"/"+k+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(v)}).catch(function(){});}
+function fechaISO(){var d=new Date();var mm=d.getMonth()+1;var dd=d.getDate();return d.getFullYear()+"-"+(mm<10?"0":"")+mm+"-"+(dd<10?"0":"")+dd;}
+var LINEAS_BASE=["RM","Algeza","Arlequin","LL Logistic","JCV","Sodesa"];
+var CRUCES=["Nogales","McAllen","Laredo"];
+var POSICIONES=["Termo","Entrega 2","Entrega 3","Entrega 4","Puerta"];
+var POS_COL={Termo:"#dc2626","Entrega 2":"#d97706","Entrega 3":"#d97706","Entrega 4":"#d97706",Puerta:"#16a34a"};
+var PRODS={
+  "Persa Conv":  {pres:["20lb","12x1","8x2"],cals:["Extra Fancy","Fancy","ML","MS"]},
+  "Persa Org":   {pres:["20lb","12x1","8x2"],cals:["Extra Fancy","Fancy","ML","MS"]},
+  "Slicer Conv": {pres:["62ct","18ct","24ct","36ct","25lb","50lb"],cals:["Superselecto","Selecto","Choice"]},
+  "Slicer Org":  {pres:["62ct","18ct","24ct","36ct","25lb","50lb"],cals:["Superselecto","Selecto","Choice"]},
+  "Morron Conv": {pres:["L","XL","Jumbo","Verde 25lb"],cals:["Primera","Tercera"]},
+  "Morron Org":  {pres:["L","XL","Jumbo","Verde 25lb"],cals:["Primera","Tercera"]},
+  "Minibel Conv":{pres:["12x8oz","12x1lb","18lb","Verde RPC"],cals:["Primera","Segunda"]},
+  "Minibel Org": {pres:["12x8oz","12x1lb","18lb","Verde RPC"],cals:["Primera","Segunda"]},
+  "Europeo Conv":{pres:["24 RPC S","24 RPC M","12 S","12 M","Bushel"],cals:["Primera","Segunda"]},
+  "Europeo Org": {pres:["24 RPC S","24 RPC M","12 S","12 M","Bushel"],cals:["Primera","Segunda"]}
+};
+var PROD_COL={Persa:"#16a34a",Slicer:"#2563eb",Morron:"#dc2626",Minibel:"#7c3aed",Europeo:"#d97706"};
+function getPCol(prod){var b=(PRODS[prod]||{base:""});for(var k in PROD_COL){if((prod||"").indexOf(k)>=0)return PROD_COL[k];}return"#374151";}
+function getCals(prod,pres){
+  var p=PRODS[prod]||{};
+  if((prod||"").indexOf("Persa")>=0&&(pres==="12x1"||pres==="8x2"))return["Primera","Segunda"];
+  if((prod||"").indexOf("Slicer")>=0&&pres==="50lb")return["Superselecto","Selecto","Large","Plain","Small"];
+  if((prod||"").indexOf("Europeo")>=0&&pres==="Bushel")return["Tercera"];
+  return p.cals||[];
+}
+function initFila(){return{linea:"",unidad:"",manifiesto:"",cruce:"",posicion:"",producto:"",presentacion:"",calidad:"",cliente:"",pallets:"",cajas:""};}
+
+function exportarXLSX(filas,nombreHoja,nombreArchivo){
+  var headers=["LINEA","UNIDAD","MANIFIESTO","CRUCE","POSICION","PRODUCTO","PRESENTACION","CALIDAD","CLIENTE","PALLETS","CAJAS"];
+  var rows=[headers];
+  filas.forEach(function(f){
+    rows.push([f.linea||"",f.unidad||"",f.manifiesto||"",f.cruce||"",f.posicion||"",f.producto||"",f.presentacion||"",f.calidad||"",f.cliente||"",parseInt(f.pallets)||0,parseInt(f.cajas)||0]);
+  });
+  var totP=filas.reduce(function(s,f){return s+(parseInt(f.pallets)||0);},0);
+  var totC=filas.reduce(function(s,f){return s+(parseInt(f.cajas)||0);},0);
+  rows.push(["TOTAL","","","","","","","","",totP,totC]);
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"]=[{wch:14},{wch:10},{wch:12},{wch:10},{wch:12},{wch:16},{wch:14},{wch:14},{wch:18},{wch:8},{wch:8}];
+  ws["!autofilter"]={ref:"A1:K1"};
+  XLSX.utils.book_append_sheet(wb,nombreHoja,ws);
+  XLSX.writeFile(wb,nombreArchivo);
+}
+
+function App(){
+  var s1=useState([]);var filas=s1[0];var setFilas=s1[1];
+  var s2=useState(initFila());var form=s2[0];var setForm=s2[1];
+  var s3=useState(LINEAS_BASE.slice());var llista=s3[0];var setLlista=s3[1];
+  var s4=useState(null);var editIdx=s4[0];var setEditIdx=s4[1];
+  var s5=useState(null);var editDat=s5[0];var setEditDat=s5[1];
+  var s6=useState("");var errMsg=s6[0];var setErrMsg=s6[1];
+  var s7=useState(false);var guardando=s7[0];var setGuardando=s7[1];
+  var s8=useState([]);var historial=s8[0];var setHistorial=s8[1];
+  var s9=useState("captura");var vista=s9[0];var setVista=s9[1];
+
+  useEffect(function(){
+    fbGet(KEY).then(function(d){if(d&&Array.isArray(d))setFilas(d.filter(Boolean));else if(d&&typeof d==="object")setFilas(Object.values(d).filter(Boolean));});
+    fbGet(LCLAVE).then(function(d){if(d&&Array.isArray(d)&&d.length)setLlista(d);});
+    fbGet(HCLAVE).then(function(d){if(d&&Array.isArray(d))setHistorial(d.filter(Boolean));});
+  },[]);
+
+  function setF(k,v){setForm(function(f){var n=Object.assign({},f);n[k]=v;if(k==="producto"){n.presentacion="";n.calidad="";}if(k==="presentacion"){n.calidad="";}return n;});}
+  function setE(k,v){setEditDat(function(f){var n=Object.assign({},f);n[k]=v;if(k==="producto"){n.presentacion="";n.calidad="";}if(k==="presentacion"){n.calidad="";}return n;});}
+  function err(m){setErrMsg(m);setTimeout(function(){setErrMsg(null);},3000);}
+  function guardarFB(nuevas){setGuardando(true);fbSet(KEY,nuevas).then(function(){setGuardando(false);});}
+
+  function agregarFila(){
+    if(!form.linea||!form.producto||!form.presentacion||!form.calidad||!form.cliente||!form.cajas){err("Completa: Linea, Producto, Presentacion, Calidad, Cliente y Cajas");return;}
+    var nuevas=filas.concat([Object.assign({},form,{id:Date.now()})]);
+    setFilas(nuevas);guardarFB(nuevas);
+    setForm(function(f){return Object.assign({},initFila(),{linea:f.linea,unidad:f.unidad,manifiesto:f.manifiesto,cruce:f.cruce});});
+  }
+
+  function borrarFila(idx){
+    if(!window.confirm("Borrar esta fila?"))return;
+    var nuevas=filas.filter(function(_,i){return i!==idx;});
+    setFilas(nuevas);guardarFB(nuevas);
+  }
+
+  function iniciarEdicion(idx){setEditIdx(idx);setEditDat(Object.assign({},filas[idx]));}
+  function cancelarEdicion(){setEditIdx(null);setEditDat(null);}
+  function guardarEdicion(){
+    var nuevas=filas.map(function(f,i){return i===editIdx?Object.assign({},editDat):f;});
+    setFilas(nuevas);guardarFB(nuevas);setEditIdx(null);setEditDat(null);
+  }
+
+  function guardarCarga(){
+    if(!filas.length)return;
+    if(!window.confirm("Guardar esta carga y limpiar la tabla?"))return;
+    var reg={id:Date.now(),ts:Date.now(),fecha:new Date().toLocaleDateString("es-MX"),filas:filas.slice()};
+    var nuevoHist=[reg].concat(historial);
+    fbSet(HCLAVE,nuevoHist).then(function(){setHistorial(nuevoHist);setFilas([]);fbSet(KEY,[]);});
+  }
+
+  function borrarRegistro(id){
+    if(!window.confirm("Borrar este registro?"))return;
+    var nuevo=historial.filter(function(h){return h.id!==id;});
+    fbSet(HCLAVE,nuevo).then(function(){setHistorial(nuevo);});
+  }
+
+  function exportarRegistro(reg){
+    exportarXLSX(reg.filas||[],"Carga "+reg.fecha,"carga_PVT_"+reg.fecha.replace(/\//g,"-")+".xlsx");
+  }
+
+  function exportarHistorial(){
+    if(!historial.length)return;
+    var wb=XLSX.utils.book_new();
+    // Hoja resumen
+    var resRows=[["FECHA","UNIDADES","PALLETS","CAJAS"]];
+    historial.forEach(function(reg){
+      var unis={};(reg.filas||[]).forEach(function(f){if(f.unidad)unis[f.unidad]=1;});
+      var totP=(reg.filas||[]).reduce(function(s,f){return s+(parseInt(f.pallets)||0);},0);
+      var totC=(reg.filas||[]).reduce(function(s,f){return s+(parseInt(f.cajas)||0);},0);
+      resRows.push([reg.fecha,Object.keys(unis).length,totP,totC]);
+    });
+    var wsRes=XLSX.utils.aoa_to_sheet(resRows);
+    wsRes["!cols"]=[{wch:14},{wch:10},{wch:10},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,"Resumen",wsRes);
+    // Hoja detalle
+    var detRows=[["FECHA","LINEA","UNIDAD","MANIFIESTO","CRUCE","POSICION","PRODUCTO","PRESENTACION","CALIDAD","CLIENTE","PALLETS","CAJAS"]];
+    historial.forEach(function(reg){
+      (reg.filas||[]).forEach(function(f){
+        detRows.push([reg.fecha,f.linea||"",f.unidad||"",f.manifiesto||"",f.cruce||"",f.posicion||"",f.producto||"",f.presentacion||"",f.calidad||"",f.cliente||"",parseInt(f.pallets)||0,parseInt(f.cajas)||0]);
+      });
+    });
+    var wsDet=XLSX.utils.aoa_to_sheet(detRows);
+    wsDet["!cols"]=[{wch:12},{wch:14},{wch:10},{wch:12},{wch:10},{wch:12},{wch:16},{wch:14},{wch:14},{wch:18},{wch:8},{wch:8}];
+    wsDet["!autofilter"]={ref:"A1:L1"};
+    XLSX.utils.book_append_sheet(wb,"Historial completo",wsDet);
+    var hoy=new Date();
+    XLSX.writeFile(wb,"historial_PVT_"+hoy.getFullYear()+"-"+(hoy.getMonth()+1)+"-"+hoy.getDate()+".xlsx");
+  }
+
+  var pI=PRODS[form.producto]||{pres:[],cals:[]};
+  var totCajas=filas.reduce(function(s,f){return s+(parseInt(f.cajas)||0);},0);
+  var totPallets=filas.reduce(function(s,f){return s+(parseInt(f.pallets)||0);},0);
+  var BG=["#dbeafe","#dcfce7","#fef9c3","#fce7f3","#e0f2fe","#f3e8ff"];
+  var BGD=["#bfdbfe","#bbf7d0","#fde68a","#fbcfe8","#bae6fd","#e9d5ff"];
+  var selSt={width:"100%",background:"#fff",border:"1.5px solid #94a3b8",borderRadius:6,padding:"6px 8px",color:"#111",fontFamily:"Arial",fontSize:13,fontWeight:700,outline:"none",WebkitAppearance:"none",appearance:"none"};
+  var texSt={width:"100%",background:"#fff",border:"1.5px solid #94a3b8",borderRadius:6,padding:"6px 8px",color:"#111",fontFamily:"Arial",fontSize:13,fontWeight:700,outline:"none"};
+
+  function manGrupar(ls){
+    var g=[];ls.forEach(function(f){var m=f.manifiesto||"—";if(g.length>0&&g[g.length-1].m===m){g[g.length-1].it.push(f);}else{g.push({m:m,it:[f]});}});return g;
+  }
+
+  function renderTabla(fs,editable){
+    if(!fs||!fs.length)return <tr><td colSpan={12} style={{textAlign:"center",padding:30,color:"#9ca3af"}}>Sin registros</td></tr>;
+    var grupos=[];
+    fs.forEach(function(f,i){
+      var cl=(f.linea||"")+"||"+(f.unidad||"");
+      if(grupos.length>0&&grupos[grupos.length-1].cl===cl){grupos[grupos.length-1].fs.push({f:f,i:i});}
+      else{grupos.push({cl:cl,linea:f.linea||"—",unidad:f.unidad||"—",fs:[{f:f,i:i}]});}
+    });
+    var rows=[];
+    grupos.forEach(function(g,gi){
+      var bg=BG[gi%BG.length];var bgd=BGD[gi%BGD.length];
+      var N=g.fs.length;
+      var totP=g.fs.reduce(function(s,r){return s+(parseInt(r.f.pallets)||0);},0);
+      var totC=g.fs.reduce(function(s,r){return s+(parseInt(r.f.cajas)||0);},0);
+      var mg=manGrupar(g.fs.map(function(r){return r.f;}));
+      var first=true;
+      mg.forEach(function(grp,mgi){
+        var bgM=mgi%2===0?bg:bgd;
+        grp.it.forEach(function(f,li){
+          var idx=g.fs[g.fs.indexOf(g.fs.filter(function(r){return r.f===f;})[0])];
+          var realIdx=fs.indexOf(f);
+          var isFirst=first;var isFM=li===0;
+          var esEdit=editable&&editIdx===realIdx;
+          var ePI2=esEdit?PRODS[editDat.producto]||{pres:[],cals:[]}:{pres:[],cals:[]};
+          var pc=getPCol(f.producto);var posC=POS_COL[f.posicion]||"#6b7280";
+          if(esEdit){
+            rows.push(<tr key={realIdx+"-e"} style={{background:"#eff6ff"}}>
+              {isFirst&&<td rowSpan={N+1} style={{background:bg,fontWeight:900,fontSize:14,color:"#064e3b",textAlign:"center",verticalAlign:"middle",borderRight:"2px solid #6ee7b7"}}>{g.linea}</td>}
+              {isFirst&&<td rowSpan={N+1} style={{background:bg,fontWeight:700,fontSize:12,textAlign:"center",verticalAlign:"middle",borderRight:"2px solid #6ee7b7"}}>{g.unidad}</td>}
+              {isFM&&<td rowSpan={grp.it.length} style={{background:bgM,fontWeight:700,color:"#065f46",textAlign:"center",verticalAlign:"middle"}}>{grp.m}</td>}
+              <td><select className="sel" value={editDat.cruce||""} onChange={function(e){setE("cruce",e.target.value);}}><option value="">--</option>{CRUCES.map(function(c){return<option key={c}>{c}</option>;})}</select></td>
+              <td><select className="sel" value={editDat.posicion||""} onChange={function(e){setE("posicion",e.target.value);}}><option value="">--</option>{POSICIONES.map(function(p){return<option key={p}>{p}</option>;})}</select></td>
+              <td><select className="sel" value={editDat.producto||""} onChange={function(e){setE("producto",e.target.value);}}><option value="">--</option>{Object.keys(PRODS).map(function(p){return<option key={p}>{p}</option>;})}</select></td>
+              <td><select className="sel" value={editDat.presentacion||""} onChange={function(e){setE("presentacion",e.target.value);}}><option value="">--</option>{ePI2.pres.map(function(p){return<option key={p}>{p}</option>;})}</select></td>
+              <td><select className="sel" value={editDat.calidad||""} onChange={function(e){setE("calidad",e.target.value);}}><option value="">--</option>{getCals(editDat.producto,editDat.presentacion).map(function(c){return<option key={c}>{c}</option>;})}</select></td>
+              <td><input className="tex" value={editDat.cliente||""} onChange={function(e){setE("cliente",e.target.value);}}/></td>
+              <td><input className="tex" type="number" value={editDat.pallets||""} style={{textAlign:"center",width:50}} onChange={function(e){setE("pallets",e.target.value);}}/></td>
+              <td><input className="tex" type="number" value={editDat.cajas||""} style={{textAlign:"center",width:55,fontWeight:900}} onChange={function(e){setE("cajas",e.target.value);}}/></td>
+              <td className="cen"><div style={{display:"flex",flexDirection:"column",gap:3}}>
+                <button className="btn bn-green" style={{padding:"2px 7px",fontSize:10}} onClick={guardarEdicion}>OK</button>
+                <button className="btn bn-gray" style={{padding:"2px 7px",fontSize:10}} onClick={cancelarEdicion}>✕</button>
+              </div></td>
+            </tr>);
+          }else{
+            rows.push(<tr key={realIdx} style={{background:bgM}}>
+              {isFirst&&<td rowSpan={N+1} style={{background:bg,fontWeight:900,fontSize:14,color:"#064e3b",textAlign:"center",verticalAlign:"middle",borderRight:"2px solid #6ee7b7"}}>{g.linea}</td>}
+              {isFirst&&<td rowSpan={N+1} style={{background:bg,fontWeight:700,fontSize:12,textAlign:"center",verticalAlign:"middle",borderRight:"2px solid #6ee7b7"}}>{g.unidad}</td>}
+              {isFM&&<td rowSpan={grp.it.length} style={{background:bgM,fontWeight:700,color:"#065f46",textAlign:"center",verticalAlign:"middle",fontSize:12}}>{grp.m}</td>}
+              <td>{f.cruce||"—"}</td>
+              <td className="cen" style={{fontSize:10,fontWeight:700,color:posC}}>{f.posicion||"—"}</td>
+              <td style={{fontWeight:900,color:pc}}>{f.producto||"—"}</td>
+              <td style={{color:pc}}>{f.presentacion||"—"}</td>
+              <td>{f.calidad||"—"}</td>
+              <td style={{fontWeight:700}}>{f.cliente||"—"}</td>
+              <td className="num">{f.pallets||"—"}</td>
+              <td className="num" style={{fontSize:13,color:pc}}>{f.cajas||"—"}</td>
+              <td className="cen">{editable&&<div style={{display:"flex",gap:3,justifyContent:"center"}}>
+                <button className="btn bn-gray" style={{padding:"2px 6px",fontSize:10}} onClick={function(){iniciarEdicion(realIdx);}}>✎</button>
+                <button className="btn bn-red" style={{padding:"2px 6px",fontSize:10}} onClick={function(){borrarFila(realIdx);}}>✕</button>
+              </div>}</td>
+            </tr>);
+          }
+          first=false;
+        });
+      });
+      rows.push(<tr key={"st"+gi} style={{background:bgd,borderTop:"2px solid #059669"}}>
+        <td colSpan={7} style={{fontWeight:900,fontSize:11,color:"#064e3b",paddingLeft:10}}>SUBTOTAL — {g.linea} · {g.unidad}</td>
+        <td className="num" style={{fontWeight:900,fontSize:13,color:"#064e3b"}}>{totP}</td>
+        <td className="num" style={{fontWeight:900,fontSize:15,color:"#064e3b"}}>{totC}</td>
+        <td></td>
+      </tr>);
+      if(editable&&gi<grupos.length-1)rows.push(<tr key={"sp"+gi}><td colSpan={12} style={{height:4,padding:0,background:"#059669",border:"none"}}></td></tr>);
+    });
+    if(editable){rows.push(<tr key="tgen" style={{background:"linear-gradient(90deg,#064e3b,#047857)"}}>
+      <td colSpan={9} style={{color:"#fff",fontWeight:900,fontSize:11,padding:"5px 7px",letterSpacing:1}}>TOTAL GENERAL</td>
+      <td className="num" style={{color:"#6ee7b7",fontSize:13}}>{totPallets}</td>
+      <td className="num" style={{color:"#6ee7b7",fontSize:15}}>{totCajas}</td>
+      <td></td>
+    </tr>);}
+    return rows;
+  }
+
+  var uniCount=(function(){var u={};filas.forEach(function(f){if(f.unidad)u[f.unidad]=1;});return Object.keys(u).length;})();
+
+  return(
+    <div style={{background:"#f1f5f9",minHeight:"100vh"}}>
+      <div style={{background:"linear-gradient(135deg,#064e3b 0%,#065f46 50%,#047857 100%)",padding:"12px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 2px 8px rgba(0,0,0,.2)"}}>
+        <div>
+          <div style={{fontSize:17,fontWeight:900,color:"#d1fae5"}}>Inventario de Cargas</div>
+          <div style={{fontSize:8,color:"#6ee7b7",letterSpacing:3,fontWeight:900}}>PARRAS VALLEY TOMATOES</div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {guardando&&<span style={{fontSize:11,color:"#6ee7b7"}}>Guardando...</span>}
+          <button className={"tab"+(vista==="captura"?" act":"")} style={{color:"#d1fae5",borderBottomColor:vista==="captura"?"#4ade80":"transparent"}} onClick={function(){setVista("captura");}}>Registro</button>
+          <button className={"tab"+(vista==="historial"?" act":"")} style={{color:"#d1fae5",borderBottomColor:vista==="historial"?"#4ade80":"transparent"}} onClick={function(){setVista("historial");}}>Historial {historial.length>0?"("+historial.length+")":""}</button>
+        </div>
+      </div>
+
+      <div style={{padding:"12px 14px"}}>
+
+        {/* HISTORIAL */}
+        {vista==="historial"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#374151"}}>{historial.length} cargas guardadas</div>
+              {historial.length>0&&<button className="btn bn-blue" onClick={exportarHistorial}>Exportar todo a Excel (.xlsx)</button>}
+            </div>
+            {historial.length===0&&<div style={{textAlign:"center",padding:50,color:"#9ca3af",fontSize:14}}>Sin cargas guardadas</div>}
+            {historial.map(function(reg){
+              var totC=(reg.filas||[]).reduce(function(s,f){return s+(parseInt(f.cajas)||0);},0);
+              var totP=(reg.filas||[]).reduce(function(s,f){return s+(parseInt(f.pallets)||0);},0);
+              var unis={};(reg.filas||[]).forEach(function(f){if(f.unidad)unis[f.unidad]=1;});
+              return(
+                <div key={reg.id} style={{background:"#fff",borderRadius:10,border:"1px solid #cbd5e1",marginBottom:12,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+                  <div style={{background:"linear-gradient(135deg,#064e3b,#065f46)",padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{display:"flex",gap:16,alignItems:"center"}}>
+                      <span style={{fontSize:13,fontWeight:900,color:"#fff"}}>{reg.fecha}</span>
+                      <span style={{fontSize:11,color:"#6ee7b7"}}>Unidades: <b style={{color:"#fff"}}>{Object.keys(unis).length}</b></span>
+                      <span style={{fontSize:11,color:"#6ee7b7"}}>Pallets: <b style={{color:"#fff"}}>{totP}</b></span>
+                      <span style={{fontSize:11,color:"#6ee7b7"}}>Cajas: <b style={{color:"#fff",fontFamily:"Georgia",fontSize:13}}>{totC}</b></span>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button className="btn bn-gray" style={{padding:"4px 12px",fontSize:11,color:"#d1fae5",borderColor:"#6ee7b7"}} onClick={function(){exportarRegistro(reg);}}>Excel</button>
+                      <button className="btn bn-red" style={{padding:"4px 12px",fontSize:11,borderColor:"#fca5a5",color:"#fca5a5"}} onClick={function(){borrarRegistro(reg.id);}}>Borrar</button>
+                    </div>
+                  </div>
+                  <div style={{overflowX:"auto"}}>
+                    <table className="main">
+                      <thead><tr><th>LINEA</th><th>UNIDAD</th><th>MANIFIESTO</th><th>CRUCE</th><th>POSICION</th><th>PRODUCTO</th><th>PRESENTACION</th><th>CALIDAD</th><th>CLIENTE</th><th>PALLETS</th><th>CAJAS</th><th></th></tr></thead>
+                      <tbody>{renderTabla(reg.filas||[],false)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* REGISTRO */}
+        {vista==="captura"&&(
+          <div style={{background:"#fff",borderRadius:10,border:"1px solid #cbd5e1",overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+            {filas.length>0&&(
+              <div style={{background:"linear-gradient(90deg,#064e3b,#065f46)",padding:"5px 14px",display:"flex",gap:20,alignItems:"center"}}>
+                <span style={{fontSize:11,color:"#6ee7b7",fontWeight:900}}>Unidades cargadas: {uniCount}</span>
+                <span style={{fontSize:11,color:"#a7f3d0"}}>Pallets: <b style={{color:"#fff"}}>{totPallets}</b></span>
+                <span style={{fontSize:11,color:"#a7f3d0"}}>Cajas: <b style={{color:"#fff",fontSize:13,fontFamily:"Georgia"}}>{totCajas}</b></span>
+              </div>
+            )}
+            <div style={{overflowX:"auto"}}>
+              <table className="main">
+                <thead>
+                  <tr>
+                    <th>LINEA</th><th>UNIDAD</th><th>MANIFIESTO</th><th>CRUCE</th>
+                    <th>POSICION</th><th>PRODUCTO</th><th>PRESENTACION</th><th>CALIDAD</th>
+                    <th>CLIENTE</th><th>PALLETS</th><th>CAJAS</th><th style={{width:70}}>ACCION</th>
+                  </tr>
+                  <tr style={{background:"#f0fdf4"}}>
+                    <td><select className="sel" value={form.linea} onChange={function(e){setF("linea",e.target.value);}}><option value="">--</option>{llista.map(function(l){return<option key={l}>{l}</option>;})}</select></td>
+                    <td><input className="tex" placeholder="..." value={form.unidad} onChange={function(e){setF("unidad",e.target.value);}}/></td>
+                    <td><input className="tex" placeholder="..." value={form.manifiesto} onChange={function(e){setF("manifiesto",e.target.value);}}/></td>
+                    <td><select className="sel" value={form.cruce} onChange={function(e){setF("cruce",e.target.value);}}><option value="">--</option>{CRUCES.map(function(c){return<option key={c}>{c}</option>;})}</select></td>
+                    <td><select className="sel" value={form.posicion} onChange={function(e){setF("posicion",e.target.value);}}><option value="">--</option>{POSICIONES.map(function(p){return<option key={p}>{p}</option>;})}</select></td>
+                    <td><select className="sel" value={form.producto} onChange={function(e){setF("producto",e.target.value);}}><option value="">--</option>{Object.keys(PRODS).map(function(p){return<option key={p}>{p}</option>;})}</select></td>
+                    <td><select className="sel" value={form.presentacion} onChange={function(e){setF("presentacion",e.target.value);}}><option value="">--</option>{pI.pres.map(function(p){return<option key={p}>{p}</option>;})}</select></td>
+                    <td><select className="sel" value={form.calidad} onChange={function(e){setF("calidad",e.target.value);}}><option value="">--</option>{getCals(form.producto,form.presentacion).map(function(c){return<option key={c}>{c}</option>;})}</select></td>
+                    <td><input className="tex" placeholder="..." value={form.cliente} onChange={function(e){setF("cliente",e.target.value);}}/></td>
+                    <td><input className="tex" type="number" min="1" placeholder="..." value={form.pallets} style={{textAlign:"center",width:55}} onChange={function(e){setF("pallets",e.target.value);}}/></td>
+                    <td><input className="tex" type="number" min="1" placeholder="..." value={form.cajas} style={{textAlign:"center",width:60,fontWeight:900}} onChange={function(e){setF("cajas",e.target.value);}}/></td>
+                    <td className="cen"><button className="btn bn-blue" style={{padding:"5px 10px",fontSize:11,whiteSpace:"nowrap"}} onClick={agregarFila}>+ Agregar</button></td>
+                  </tr>
+                  {errMsg&&<tr><td colSpan={12} style={{background:"#fef2f2",color:"#dc2626",fontWeight:700,fontSize:11,padding:"5px 10px"}}>{errMsg}</td></tr>}
+                </thead>
+                <tbody>{renderTabla(filas,true)}</tbody>
+              </table>
+            </div>
+            {filas.length>0&&(
+              <div style={{padding:"10px 14px"}}>
+                <button className="btn bn-green" style={{width:"100%",padding:"13px",fontSize:15}} onClick={guardarCarga}>
+                  Guardar carga — {uniCount} unidades · {totPallets} pallets · {totCajas} cajas
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

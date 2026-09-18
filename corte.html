@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Corte real vs proyectado</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#07100a;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+#root{padding:12px;max-width:1500px;margin:0 auto}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #17301a;padding:5px 7px;font-size:12px;text-align:center;white-space:nowrap}
+th{background:#0d1c0f;font-weight:800;color:#9fb8a4}
+td.lbl,th.lbl{text-align:left;font-weight:800}
+.btn{padding:7px 14px;border-radius:8px;border:1px solid #2d4a2d;background:#0d1c0f;color:#cfe8d4;font-weight:800;cursor:pointer;font-size:13px}
+.btn:hover{background:#14301a}
+.on{background:#1b5e2a;border-color:#3ddc6b;color:#eaffe8}
+input[type=date],input[type=number]{background:#0a150a;border:1px solid #2d4a2d;color:#e6edf3;border-radius:7px;padding:6px 8px;font-size:13px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+var BUILD="v2026-09-18-CORTE4";
+(function(){try{
+  var n=parseInt(sessionStorage.getItem("corte-rec")||"0");
+  if(n>3)return;
+  fetch(location.href.split("#")[0]+"?v="+Date.now(),{cache:"no-store"}).then(function(r){return r.text()})
+  .then(function(t){var m=t.match(/var BUILD="([^"]+)"/);
+    if(m&&m[1]!==BUILD){sessionStorage.setItem("corte-rec",String(n+1));location.reload(true);}});
+}catch(e){}})();
+</script>
+<script type="text/babel">
+var uS=React.useState,uE=React.useEffect,uM=React.useMemo;
+var FB="https://parrasvalley-default-rtdb.firebaseio.com";
+// Abierto como archivo local, el navegador manda Origin null y el fetch se
+// puede caer por CORS. Si pasa, se vuelve a pedir con una etiqueta <script>
+// (callback), que no pide permiso de CORS. Asi el archivo jala igual desde
+// el escritorio que desde la pagina.
+var _jsonpN=0;
+function jsonp(k){
+  return new Promise(function(ok){
+    var fn="_cb"+(++_jsonpN)+"_"+Date.now();
+    var sc=document.createElement("script");
+    var t=setTimeout(function(){fin(null)},20000);
+    function fin(v){try{clearTimeout(t)}catch(e){}
+      try{delete window[fn]}catch(e){window[fn]=undefined}
+      try{sc.parentNode.removeChild(sc)}catch(e){}
+      ok(v);}
+    window[fn]=function(d){fin(d)};
+    sc.onerror=function(){fin(null)};
+    sc.src=FB+"/"+k+".json?callback="+fn+"&t="+Date.now();
+    document.head.appendChild(sc);
+  });
+}
+function fget(k){
+  return fetch(FB+"/"+k+".json?t="+Date.now())
+    .then(function(r){return r.json()})
+    .catch(function(){return jsonp(k)});
+}
+function fput(k,v){return fetch(FB+"/"+k+".json",{method:"PUT",body:JSON.stringify(v)})
+  .then(function(r){return r.ok})
+  .catch(function(){return false})}
+function lsR(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}}
+function lsS(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function ni(v){var x=parseInt(v);return isNaN(x)?0:x}
+function mil(x){return Number(x||0).toLocaleString("en-US")}
+function dosD(n){n=parseInt(n,10);return (n<10?"0":"")+n}
+function aArr(x){if(!x)return [];return Array.isArray(x)?x.filter(Boolean):Object.values(x).filter(Boolean)}
+function iso(d){return d.getFullYear()+"-"+dosD(d.getMonth()+1)+"-"+dosD(d.getDate())}
+function masDias(f,n){var d=new Date(f+"T12:00:00");d.setDate(d.getDate()+n);return iso(d)}
+function tsISO(ts){if(!ts)return "";var d=new Date(ts);if(d.getHours()<6)d=new Date(d.getTime()-6*3600000);return iso(d)}
+var MES3={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+// Misma lectura de fechas que control de empaque y KPIs: recibo las escribe
+// de varias formas y todas tienen que caer en el dia correcto.
+function leeFechaTexto(f){
+  var s=String(f||"").toLowerCase().replace(/[.,]/g," ");
+  var m=s.match(/(\d{4})\s*[-\/]\s*(\d{1,2})\s*[-\/]\s*(\d{1,2})/);
+  if(m)return m[1]+"-"+dosD(m[2])+"-"+dosD(m[3]);
+  m=s.match(/(\d{1,2})\s*[-\/]\s*(\d{1,2})\s*[-\/]\s*(\d{4})/);
+  if(m)return m[3]+"-"+dosD(m[2])+"-"+dosD(m[1]);
+  s=s.replace(/\bde\b/g," ").replace(/\bdel\b/g," ");
+  m=s.match(/(\d{1,2})\s+([a-zñáéíóú]+)\s+(\d{4})/);
+  if(m&&MES3[m[2].slice(0,3)])return m[3]+"-"+dosD(MES3[m[2].slice(0,3)])+"-"+dosD(m[1]);
+  m=s.match(/([a-zñáéíóú]+)\s+(\d{1,2})\s+(\d{4})/);
+  if(m&&MES3[m[1].slice(0,3)])return m[3]+"-"+dosD(MES3[m[1].slice(0,3)])+"-"+dosD(m[2]);
+  return "";
+}
+function recISO(h){
+  var f=leeFechaTexto((h&&h.fecha)||"");
+  if(f)return f;
+  if(h&&h.id){var d=new Date(h.id);if(d.getHours()<6)d=new Date(d.getTime()-6*3600000);return iso(d);}
+  return "";
+}
+
+/* ---------- nombres ---------- */
+var DIAS=["Vie","Sab","Dom","Lun","Mar","Mie","Jue"];
+var RL={pvt:"PVT",crp:"Cordillera",f4h:"Forrajera",fepo:"FEPO"};
+function ranNorm(r){
+  var s=String(r||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(!s)return "";
+  if(s.indexOf("cord")>=0||s==="crp"||s==="cpr")return "crp";
+  if(s.indexOf("pvt")>=0||s.indexOf("pbt")>=0)return "pvt";
+  if(s.indexOf("forr")>=0||s==="f4h")return "f4h";
+  if(s.indexOf("fepo")>=0)return "fepo";
+  return s;
+}
+function ranLbl(r){return RL[r]||String(r||"").toUpperCase()}
+var CULTIVOS=["Persa","Slicer","Europeo","Morron","Minibel"];
+function cultNorm(c){
+  var s=String(c||"").toLowerCase().replace(/[^a-z]/g,"");
+  if(s.indexOf("persa")>=0)return "Persa";
+  if(s.indexOf("slicer")>=0||s.indexOf("bola")>=0)return "Slicer";
+  if(s.indexOf("europ")>=0||s.indexOf("euro")>=0)return "Europeo";
+  if(s.indexOf("morron")>=0||s.indexOf("bell")>=0||s.indexOf("pimiento")>=0)return "Morron";
+  if(s.indexOf("minibel")>=0||s.indexOf("cherry")>=0||s.indexOf("uva")>=0)return "Minibel";
+  return "";
+}
+function normSemFecha(s){
+  if(!s)return "";s=String(s).trim();
+  if(s.length===10&&s[4]==="-")return s;
+  if(s.length===10&&s[2]==="/")return s.slice(6)+"-"+s.slice(3,5)+"-"+s.slice(0,2);
+  if(s.length===8)return s.slice(0,4)+"-"+s.slice(4,6)+"-"+s.slice(6,8);
+  return s;
+}
+// Viernes de la semana que ya cerro (la semana pasada)
+function viernesPasado(){
+  var d=new Date(),off={5:0,6:1,0:2,1:3,2:4,3:5,4:6}[d.getDay()]||0;
+  var f=new Date(d);f.setDate(d.getDate()-off-7);return iso(f);
+}
+
+function App(){
+  var [sem,setSem]=uS(viernesPasado());
+  var [D,setD]=uS(null);
+  var [est,setEst]=uS("cargando");
+  var [vista,setVista]=uS("dif");     // proy | real | dif
+  var [modoDom,setModoDom]=uS(false);
+  var [dom,setDom]=uS({});            // domingo capturado a mano
+  var [guard,setGuard]=uS("");
+  var [diag,setDiag]=uS(false);
+  var [ult,setUlt]=uS(null);
+
+  function cargar(){
+    setEst("cargando");
+    var dg=[];
+    // La proyeccion de campo ha vivido en varios nombres. Se prueban todos,
+    // igual que lo hace proyeccion-empaque, y se queda con el que traiga datos.
+    var PATHS=["proyeccion-campo-v1","campo-proyeccion-v1","proyeccion-campo","campo-proyeccion"];
+    function buscaProy(i){
+      if(i>=PATHS.length)return Promise.resolve({d:null,de:""});
+      return fget(PATHS[i]).then(function(d){
+        var n=d?Object.keys(d).length:0;
+        dg.push({k:PATHS[i],n:n,m:d?Object.keys(d).slice(0,3).join("  |  "):"vacio"});
+        if(n)return {d:d,de:PATHS[i]};
+        return buscaProy(i+1);
+      });
+    }
+    Promise.all([buscaProy(0),fget("recibo-hist-v1"),fget("recibo-inv-v1"),fget("corte-dom-v1")])
+      .then(function(v){
+        var dd=v[3]||{};
+        var loc=lsR("corte-dom")||{};
+        Object.keys(loc).forEach(function(sk){dd[sk]=Object.assign({},dd[sk]||{},loc[sk])});
+        var h=aArr(v[1]);
+        dg.push({k:"recibo-hist-v1",n:h.length,
+          m:h.slice(-4).map(function(x){return (x.lineaNombre||x.linea||"?")+" "+(x.fecha||x.id||"?")+" -> "+recISO(x)}).join("   ")||"vacio"});
+        var la=Object.keys(v[2]||{});
+        dg.push({k:"recibo-inv-v1",n:la.length,m:la.join(", ")||"vacio"});
+        setD({proy:v[0].d,proyDe:v[0].de,hist:v[1],abierto:v[2],dom:dd,diag:dg});
+        setDom(dd[sem]||{});
+        setUlt(new Date());
+        setEst("listo");
+      }).catch(function(e){setD({diag:dg,err:String(e&&e.message||e)});setEst("error")});
+  }
+  uE(cargar,[sem]);
+  // Se queda al pendiente sola: relee cada 2 minutos y tambien cuando uno
+  // regresa a la pestana. Asi, en cuanto campo proyecta o recibo cierra un
+  // dia, el reporte ya lo trae sin que nadie le pique nada.
+  uE(function(){
+    var t=setInterval(function(){if(!document.hidden)cargar()},120000);
+    function alVolver(){if(!document.hidden)cargar()}
+    document.addEventListener("visibilitychange",alVolver);
+    window.addEventListener("focus",alVolver);
+    return function(){clearInterval(t);
+      document.removeEventListener("visibilitychange",alVolver);
+      window.removeEventListener("focus",alVolver);};
+  },[sem]);
+
+  /* ---- PROYECTADO: proyeccion-campo-v1, claves "semana|rancho|dia" ---- */
+  var proy=uM(function(){
+    var out={},ran={};
+    if(!D||!D.proy)return {d:out,ranchos:[]};
+    var sN=normSemFecha(sem);
+    var DIA2I={Vie:0,Sab:1,Dom:2,Lun:3,Mar:4,Mie:5,Jue:6};
+    Object.keys(D.proy).forEach(function(k){
+      var p=k.split("|");
+      if(normSemFecha((p[0]||"").trim())!==sN)return;
+      var rid=ranNorm(p[1]);if(!rid)return;
+      var di=parseInt(p[2]);if(isNaN(di))di=DIA2I[(p[2]||"").trim()];
+      if(di===undefined||isNaN(di))return;
+      var blo=D.proy[k]||{};
+      Object.keys(blo).forEach(function(nom){
+        var _u=String(nom).toUpperCase().replace(/[^A-Z0-9]/g,"");
+        if(_u.indexOf("EUROPEOM")>=0)return;   // mallas de prueba
+        var cu=cultNorm(nom);if(!cu)return;
+        var tt=0,ob=blo[nom]||{};
+        Object.keys(ob).forEach(function(tipo){
+          var v=ob[tipo];
+          tt+=ni(v&&typeof v==="object"?v.rejas:v);
+        });
+        if(!tt)return;
+        ran[rid]=1;
+        var kk=rid+"|"+cu+"|"+di;
+        out[kk]=(out[kk]||0)+tt;
+      });
+    });
+    return {d:out,ranchos:Object.keys(ran)};
+  },[D,sem]);
+
+  /* ---- REAL: recibo. Cierre manda sobre el dia abierto ---- */
+  var real=uM(function(){
+    var out={},ran={},dias={};
+    if(!D)return {d:out,ranchos:[],dias:dias};
+    var fechas={};for(var i=0;i<7;i++)fechas[masDias(sem,i)]=i;
+    // 1) cierres
+    var cerrado={};
+    aArr(D.hist).forEach(function(h){
+      var f=recISO(h);var di=fechas[f];if(di===undefined)return;
+      var cu=cultNorm(h.lineaNombre||h.linea||"");if(!cu)return;
+      cerrado[cu+"|"+di]=1;dias[cu+"|"+di]="cerrado";dias["dia|"+di]="cerrado";
+      aArr(h.lotes).forEach(function(l){
+        if(!l||!l.rancho)return;
+        var rid=ranNorm(l.rancho);if(!rid)return;
+        ran[rid]=1;
+        var kk=rid+"|"+cu+"|"+di;
+        out[kk]=(out[kk]||0)+ni(l.cajas);
+      });
+    });
+    // 2) dia abierto, solo donde no hubo cierre
+    Object.keys(D.abierto||{}).forEach(function(ln){
+      var cu=cultNorm(ln);if(!cu)return;
+      aArr((D.abierto[ln]||{}).lotes).forEach(function(l){
+        if(!l||!l.rancho)return;
+        var f=tsISO(l.ts);var di=fechas[f];if(di===undefined)return;
+        if(cerrado[cu+"|"+di])return;
+        var rid=ranNorm(l.rancho);if(!rid)return;
+        ran[rid]=1;dias[cu+"|"+di]="abierto";dias["dia|"+di]=dias["dia|"+di]||"abierto";
+        var kk=rid+"|"+cu+"|"+di;
+        out[kk]=(out[kk]||0)+ni(l.cajas);
+      });
+    });
+    // 3) domingo a mano
+    Object.keys(dom||{}).forEach(function(kk){
+      var v=ni(dom[kk]);if(!v)return;
+      var p=kk.split("|");var rid=ranNorm(p[0]);if(!rid)return;
+      ran[rid]=1;
+      out[rid+"|"+p[1]+"|2"]=(out[rid+"|"+p[1]+"|2"]||0)+v;
+      dias["dia|2"]="manual";
+    });
+    return {d:out,ranchos:Object.keys(ran),dias:dias};
+  },[D,sem,dom]);
+
+  var ranchos=uM(function(){
+    var s={};proy.ranchos.concat(real.ranchos).forEach(function(r){s[r]=1});
+    var ord=["pvt","crp","f4h","fepo"];
+    return Object.keys(s).sort(function(a,b){
+      var ia=ord.indexOf(a),ib=ord.indexOf(b);
+      if(ia<0)ia=99;if(ib<0)ib=99;
+      return ia-ib||a.localeCompare(b);
+    });
+  },[proy,real]);
+
+  function P(r,c,d){return proy.d[r+"|"+c+"|"+d]||0}
+  function R(r,c,d){return real.d[r+"|"+c+"|"+d]||0}
+
+  function guardaDom(){
+    var todo=JSON.parse(JSON.stringify((D&&D.dom)||{}));
+    todo[sem]=dom;
+    var loc=lsR("corte-dom")||{};loc[sem]=dom;lsS("corte-dom",loc);
+    setGuard("Guardando...");
+    fput("corte-dom-v1",todo).then(function(ok){
+      setGuard(ok?"Guardado":"Guardado solo en esta computadora");
+      setTimeout(function(){setGuard("")},3500);
+    });
+  }
+  function setDomV(rid,cu,v){
+    var n=JSON.parse(JSON.stringify(dom));
+    var k=rid+"|"+cu;
+    if(String(v).trim()==="")delete n[k];else n[k]=ni(v);
+    setDom(n);
+  }
+
+  /* ---------- foto ---------- */
+  function compartir(){
+    var el=document.getElementById("reporte");if(!el)return;
+    var ANCHO=1400;
+    var jaula=document.createElement("div");
+    jaula.style.cssText="position:absolute;left:-30000px;top:0;width:"+ANCHO+"px;background:#07100a;padding:16px;box-sizing:border-box";
+    var copia=el.cloneNode(true);copia.removeAttribute("id");
+    copia.style.display="block";copia.style.maxHeight="none";copia.style.overflow="visible";
+    [].slice.call(copia.querySelectorAll("[data-nofoto]")).forEach(function(n){n.parentNode.removeChild(n)});
+    [].slice.call(copia.querySelectorAll("*")).forEach(function(n){
+      if(n.style){n.style.maxHeight="none";n.style.overflow="visible"}
+    });
+    jaula.appendChild(copia);document.body.appendChild(jaula);
+    var an=Math.max(jaula.scrollWidth,ANCHO),al=Math.max(jaula.scrollHeight,copia.scrollHeight+32,200);
+    window.html2canvas(jaula,{backgroundColor:"#07100a",scale:2,width:an,height:al,
+      windowWidth:an,windowHeight:al,scrollX:0,scrollY:0,x:0,y:0}).then(function(cv){
+      document.body.removeChild(jaula);
+      cv.toBlob(function(bl){
+        var nom="corte-"+sem+".png";
+        var f=new File([bl],nom,{type:"image/png"});
+        if(navigator.canShare&&navigator.canShare({files:[f]})){
+          navigator.share({files:[f],title:"Corte real vs proyectado"}).catch(function(){});
+        }else{
+          var a=document.createElement("a");a.href=cv.toDataURL("image/png");a.download=nom;a.click();
+        }
+      },"image/png");
+    }).catch(function(){try{document.body.removeChild(jaula)}catch(e){}});
+  }
+
+  /* ---------- pintado ---------- */
+  function celda(p,r,hayDato){
+    var dif=r-p;
+    var col=dif>0?"#4ade80":dif<0?"#f87171":"#9fb8a4";
+    if(vista==="proy")return React.createElement("td",{style:{color:"#9fb8a4"}},p?mil(p):"-");
+    if(vista==="real")return React.createElement("td",{style:{color:hayDato?"#e6edf3":"#6b7280"}},hayDato?mil(r):"s/d");
+    if(!p&&!r)return React.createElement("td",{style:{color:"#3f4b43"}},"-");
+    if(!hayDato)return React.createElement("td",{style:{color:"#6b7280"}},"s/d");
+    var pct=p>0?Math.round(dif*100/p):null;
+    return React.createElement("td",{style:{color:col,fontWeight:700}},
+      (dif>0?"+":"")+mil(dif),
+      React.createElement("div",{style:{fontSize:"10px",opacity:.75,fontWeight:600}},
+        pct===null?"sin proy":(pct>0?"+":"")+pct+"%"));
+  }
+
+  var totPro=0,totReal=0;
+  var filas=[];
+  ranchos.forEach(function(rid){
+    var subs=CULTIVOS.filter(function(cu){
+      for(var d=0;d<7;d++){if(P(rid,cu,d)||R(rid,cu,d))return true}
+      return false;
+    });
+    if(!subs.length)return;
+    filas.push(React.createElement("tr",{key:"h"+rid},
+      React.createElement("td",{className:"lbl",colSpan:11,
+        style:{background:"#102a14",color:"#7ee08f",fontSize:"13px"}},ranLbl(rid))));
+    subs.forEach(function(cu){
+      var sp=0,sr=0;
+      var cs=[];
+      for(var d=0;d<7;d++){
+        var p=P(rid,cu,d),r=R(rid,cu,d);
+        var hay=!!real.dias["dia|"+d]||r>0;
+        sp+=p;sr+=r;
+        cs.push(React.createElement(React.Fragment,{key:d},celda(p,r,hay)));
+      }
+      totPro+=sp;totReal+=sr;
+      var dif=sr-sp,pct=sp>0?Math.round(dif*100/sp):null;
+      filas.push(React.createElement("tr",{key:rid+cu},
+        React.createElement("td",{className:"lbl",style:{paddingLeft:"18px",color:"#cfe8d4"}},cu),
+        cs,
+        React.createElement("td",{style:{background:"#0d1c0f",fontWeight:800}},mil(sp)),
+        React.createElement("td",{style:{background:"#0d1c0f",fontWeight:800}},mil(sr)),
+        React.createElement("td",{style:{background:"#0d1c0f",fontWeight:800,
+          color:dif>0?"#4ade80":dif<0?"#f87171":"#9fb8a4"}},
+          (dif>0?"+":"")+mil(dif),
+          React.createElement("div",{style:{fontSize:"10px",opacity:.75}},
+            pct===null?"":(pct>0?"+":"")+pct+"%"))));
+    });
+  });
+
+  // resumen por cultivo
+  var resCu=CULTIVOS.map(function(cu){
+    var p=0,r=0;
+    ranchos.forEach(function(rid){for(var d=0;d<7;d++){p+=P(rid,cu,d);r+=R(rid,cu,d)}});
+    return {cu:cu,p:p,r:r};
+  }).filter(function(x){return x.p||x.r});
+
+  var filasHay=filas.length>0;
+  var difT=totReal-totPro,pctT=totPro>0?Math.round(difT*100/totPro):0;
+
+  return React.createElement("div",null,
+    React.createElement("div",{style:{display:"flex",gap:"8px",alignItems:"center",flexWrap:"wrap",marginBottom:"10px"},"data-nofoto":"1"},
+      React.createElement("button",{className:"btn",onClick:function(){setSem(masDias(sem,-7))}},"◀"),
+      React.createElement("input",{type:"date",value:sem,onChange:function(e){setSem(e.target.value)}}),
+      React.createElement("button",{className:"btn",onClick:function(){setSem(masDias(sem,7))}},"▶"),
+      React.createElement("button",{className:"btn",onClick:cargar},"Actualizar"),
+      React.createElement("span",{style:{flex:1}}),
+      ["dif","real","proy"].map(function(v){
+        return React.createElement("button",{key:v,className:"btn"+(vista===v?" on":""),
+          onClick:function(){setVista(v)}},v==="dif"?"Diferencia":v==="real"?"Cortado":"Proyectado")}),
+      React.createElement("button",{className:"btn"+(modoDom?" on":""),onClick:function(){setModoDom(!modoDom)}},"Domingo"),
+      React.createElement("button",{className:"btn"+(diag?" on":""),onClick:function(){setDiag(!diag)}},"Diagnostico"),
+      React.createElement("button",{className:"btn",onClick:compartir},"Compartir")),
+
+    (diag||(est==="listo"&&!filasHay))?React.createElement("div",{"data-nofoto":"1",
+      style:{border:"1px solid #7a5b12",borderRadius:"10px",padding:"10px",marginBottom:"12px",
+        background:"#141003",fontSize:"12px",fontFamily:"monospace",overflowX:"auto"}},
+      React.createElement("div",{style:{fontWeight:800,color:"#fbbf24",marginBottom:"6px",fontFamily:"inherit"}},
+        "Que trajo de Firebase"),
+      ((D&&D.diag)||[]).map(function(x,i){
+        return React.createElement("div",{key:i,style:{marginBottom:"3px",
+          color:x.n?"#9fe8a4":"#f87171",whiteSpace:"nowrap"}},
+          (x.n?"OK  ":"VACIO  ")+x.k+"  ("+x.n+")   "+x.m);
+      }),
+      React.createElement("div",{style:{marginTop:"6px",color:"#9fb8a4",whiteSpace:"nowrap"}},
+        "Semana que estoy buscando: "+sem+"   (las claves de arriba deben empezar con esa fecha)"),
+      D&&D.err?React.createElement("div",{style:{color:"#f87171"}},"Error: "+D.err):null):null,
+
+    modoDom?React.createElement("div",{"data-nofoto":"1",
+      style:{border:"1px solid #2d4a2d",borderRadius:"10px",padding:"10px",marginBottom:"12px",background:"#0a150a"}},
+      React.createElement("div",{style:{fontWeight:800,marginBottom:"8px",color:"#7ee08f"}},
+        "Domingo "+masDias(sem,2)+" - rejas que llegaron (captura a mano)"),
+      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:"8px"}},
+        ranchos.length?[].concat.apply([],ranchos.map(function(rid){
+          return CULTIVOS.filter(function(cu){
+            for(var d=0;d<7;d++){if(P(rid,cu,d)||R(rid,cu,d))return true}return false;
+          }).map(function(cu){
+            return React.createElement("label",{key:rid+cu,style:{display:"flex",gap:"6px",alignItems:"center",fontSize:"12px"}},
+              React.createElement("span",{style:{flex:1,color:"#9fb8a4"}},ranLbl(rid)+" "+cu),
+              React.createElement("input",{type:"number",style:{width:"90px"},
+                value:dom[rid+"|"+cu]===undefined?"":dom[rid+"|"+cu],
+                onChange:function(e){setDomV(rid,cu,e.target.value)}}));
+          });
+        })):React.createElement("div",{style:{color:"#6b7280"}},"Sin ranchos todavia")),
+      React.createElement("div",{style:{marginTop:"10px",display:"flex",gap:"8px",alignItems:"center"}},
+        React.createElement("button",{className:"btn on",onClick:guardaDom},"Guardar domingo"),
+        React.createElement("span",{style:{color:"#7ee08f",fontSize:"12px"}},guard))):null,
+
+    React.createElement("div",{id:"reporte"},
+      React.createElement("div",{style:{marginBottom:"10px"}},
+        React.createElement("div",{style:{fontSize:"18px",fontWeight:900,color:"#7ee08f"}},
+          "Corte real vs proyectado"),
+        React.createElement("div",{style:{fontSize:"12px",color:"#9fb8a4"}},
+          "Semana "+sem+" al "+masDias(sem,6)+"  -  rejas"),
+        est!=="listo"?React.createElement("div",{style:{fontSize:"12px",color:"#fbbf24"}},
+          est==="cargando"?"Cargando...":"Error al leer")
+        :React.createElement("div",{style:{fontSize:"11px",color:"#6b8a6f"}},
+          "Al dia - ultima lectura "+(ult?ult.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"}):"")+
+          " - se refresca sola cada 2 minutos")),
+
+      React.createElement("div",{style:{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"12px"}},
+        [{l:"Proyectado",v:mil(totPro),c:"#9fb8a4"},
+         {l:"Cortado",v:mil(totReal),c:"#e6edf3"},
+         {l:"Diferencia",v:(difT>0?"+":"")+mil(difT),c:difT>0?"#4ade80":difT<0?"#f87171":"#9fb8a4"},
+         {l:"Cumplimiento",v:totPro>0?Math.round(totReal*100/totPro)+"%":"-",
+          c:pctT>=0?"#4ade80":"#f87171"}].map(function(k){
+          return React.createElement("div",{key:k.l,style:{border:"1px solid #1e3a0e",borderRadius:"10px",
+            padding:"8px 16px",background:"#0a150a",minWidth:"130px"}},
+            React.createElement("div",{style:{fontSize:"11px",color:"#6b8a6f",fontWeight:700}},k.l),
+            React.createElement("div",{style:{fontSize:"20px",fontWeight:900,color:k.c}},k.v));
+        })),
+
+      React.createElement("table",null,
+        React.createElement("thead",null,
+          React.createElement("tr",null,
+            React.createElement("th",{className:"lbl"},vista==="dif"?"Cortado - proyectado":vista==="real"?"Cortado":"Proyectado"),
+            DIAS.map(function(d,i){return React.createElement("th",{key:d},d,
+              React.createElement("div",{style:{fontSize:"9px",fontWeight:600,opacity:.6}},masDias(sem,i).slice(5)))}),
+            React.createElement("th",null,"Proy"),
+            React.createElement("th",null,"Real"),
+            React.createElement("th",null,"Dif"))),
+        React.createElement("tbody",null,filas.length?filas:
+          React.createElement("tr",null,React.createElement("td",{colSpan:11,style:{color:"#6b7280",padding:"18px"}},
+            est==="listo"?"No hay datos de esa semana":"...")))),
+
+      resCu.length?React.createElement("div",{style:{marginTop:"14px"}},
+        React.createElement("div",{style:{fontSize:"13px",fontWeight:800,color:"#7ee08f",marginBottom:"6px"}},"Resumen por cultivo"),
+        React.createElement("table",null,
+          React.createElement("thead",null,React.createElement("tr",null,
+            React.createElement("th",{className:"lbl"},"Cultivo"),
+            React.createElement("th",null,"Proyectado"),
+            React.createElement("th",null,"Cortado"),
+            React.createElement("th",null,"Diferencia"),
+            React.createElement("th",null,"Cumplimiento"))),
+          React.createElement("tbody",null,resCu.map(function(x){
+            var d=x.r-x.p;
+            return React.createElement("tr",{key:x.cu},
+              React.createElement("td",{className:"lbl"},x.cu),
+              React.createElement("td",null,mil(x.p)),
+              React.createElement("td",null,mil(x.r)),
+              React.createElement("td",{style:{color:d>0?"#4ade80":d<0?"#f87171":"#9fb8a4",fontWeight:700}},(d>0?"+":"")+mil(d)),
+              React.createElement("td",{style:{fontWeight:700}},x.p>0?Math.round(x.r*100/x.p)+"%":"-"));
+          })))):null,
+
+      React.createElement("div",{style:{marginTop:"10px",fontSize:"11px",color:"#6b8a6f"}},
+        "s/d = recibo no tiene ese dia cerrado, no quiere decir que no cortaron.  ",
+        "El domingo se captura a mano con el boton Domingo.  ",BUILD)));
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>

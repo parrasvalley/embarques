@@ -25,7 +25,7 @@ input[type=date],input[type=number]{background:#0a150a;border:1px solid #2d4a2d;
 <body>
 <div id="root"></div>
 <script>
-var BUILD="v2026-09-18-CORTE4";
+var BUILD="v2026-09-18-CORTE12";
 (function(){try{
   var n=parseInt(sessionStorage.getItem("corte-rec")||"0");
   if(n>3)return;
@@ -223,7 +223,7 @@ function App(){
   /* ---- REAL: recibo. Cierre manda sobre el dia abierto ---- */
   var real=uM(function(){
     var out={},ran={},dias={};
-    if(!D)return {d:out,ranchos:[],dias:dias};
+    if(!D)return {d:out,ranchos:[],dias:dias,dcap:{}};
     var fechas={};for(var i=0;i<7;i++)fechas[masDias(sem,i)]=i;
     // 1) cierres
     var cerrado={};
@@ -252,15 +252,19 @@ function App(){
         out[kk]=(out[kk]||0)+ni(l.cajas);
       });
     });
-    // 3) domingo a mano
+    // 3) domingo a mano. OJO: capturar el domingo de UN rancho no quiere decir
+    // que se sepa lo de los demas. La marca es por rancho+cultivo, no del dia
+    // completo; si no, a los que no se capturaron se les contaba cero cortado
+    // y el total de la semana no cuadraba con los numeros de los dias.
+    var dcap={};
     Object.keys(dom||{}).forEach(function(kk){
       var v=ni(dom[kk]);if(!v)return;
       var p=kk.split("|");var rid=ranNorm(p[0]);if(!rid)return;
       ran[rid]=1;
       out[rid+"|"+p[1]+"|2"]=(out[rid+"|"+p[1]+"|2"]||0)+v;
-      dias["dia|2"]="manual";
+      dcap[rid+"|"+p[1]]=1;
     });
-    return {d:out,ranchos:Object.keys(ran),dias:dias};
+    return {d:out,ranchos:Object.keys(ran),dias:dias,dcap:dcap};
   },[D,sem,dom]);
 
   var ranchos=uM(function(){
@@ -294,8 +298,8 @@ function App(){
   }
 
   /* ---------- foto ---------- */
-  function compartir(){
-    var el=document.getElementById("reporte");if(!el)return;
+  function compartir(id,nombre){
+    var el=document.getElementById(id||"reporte");if(!el)return;
     var ANCHO=1400;
     var jaula=document.createElement("div");
     jaula.style.cssText="position:absolute;left:-30000px;top:0;width:"+ANCHO+"px;background:#07100a;padding:16px;box-sizing:border-box";
@@ -311,7 +315,7 @@ function App(){
       windowWidth:an,windowHeight:al,scrollX:0,scrollY:0,x:0,y:0}).then(function(cv){
       document.body.removeChild(jaula);
       cv.toBlob(function(bl){
-        var nom="corte-"+sem+".png";
+        var nom=(nombre||"corte")+"-"+sem+".png";
         var f=new File([bl],nom,{type:"image/png"});
         if(navigator.canShare&&navigator.canShare({files:[f]})){
           navigator.share({files:[f],title:"Corte real vs proyectado"}).catch(function(){});
@@ -323,63 +327,132 @@ function App(){
   }
 
   /* ---------- pintado ---------- */
-  function celda(p,r,hayDato){
-    var dif=r-p;
-    var col=dif>0?"#4ade80":dif<0?"#f87171":"#9fb8a4";
-    if(vista==="proy")return React.createElement("td",{style:{color:"#9fb8a4"}},p?mil(p):"-");
-    if(vista==="real")return React.createElement("td",{style:{color:hayDato?"#e6edf3":"#6b7280"}},hayDato?mil(r):"s/d");
-    if(!p&&!r)return React.createElement("td",{style:{color:"#3f4b43"}},"-");
-    if(!hayDato)return React.createElement("td",{style:{color:"#6b7280"}},"s/d");
-    var pct=p>0?Math.round(dif*100/p):null;
-    return React.createElement("td",{style:{color:col,fontWeight:700}},
-      (dif>0?"+":"")+mil(dif),
-      React.createElement("div",{style:{fontSize:"10px",opacity:.75,fontWeight:600}},
-        pct===null?"sin proy":(pct>0?"+":"")+pct+"%"));
+  var COLR={pvt:"#e0b020",crp:"#4aa8e0",f4h:"#3ec97a",fepo:"#c060d0"};
+  function colRan(r){return COLR[r]||"#9fb8a4"}
+  function hayDia(rid,cu,d){
+    if(d===2)return !!(real.dcap&&real.dcap[rid+"|"+cu])||!!real.dias["dia|2"]||R(rid,cu,d)>0;
+    return !!real.dias["dia|"+d]||R(rid,cu,d)>0;
+  }
+  function pctDe(p,d){return p>0?Math.round(d*100/p):null}
+
+  // Cada celda dice las tres cosas que Miguel pide: lo que cortaron, de cuanto
+  // iban, y la diferencia en cajas y en por ciento.
+  function celda(p,r,hay,key){
+    var dif=r-p, pct=pctDe(p,dif);
+    if(vista==="proy")return React.createElement("td",{key:key,style:{color:"#8fb0c9",fontWeight:800}},p?mil(p):"-");
+    if(vista==="real")return React.createElement("td",{key:key,style:{color:hay?"#e6edf3":"#6b7280",fontWeight:800}},
+      hay?mil(r):"sin cierre");
+    if(!p&&!r)return React.createElement("td",{key:key,style:{color:"#2a3a29"}},"-");
+    if(!hay)return React.createElement("td",{key:key,style:{background:"#241c05",color:"#d6a93a",fontSize:"11px",fontWeight:700}},
+      "sin cierre",p?React.createElement("div",{style:{fontSize:"10px",color:"#8a7a3a"}},"iban "+mil(p)):null);
+    var bien=dif>=0;
+    return React.createElement("td",{key:key,style:{background:dif>0?"rgba(34,197,94,.16)":dif<0?"rgba(239,68,68,.16)":"rgba(255,255,255,.04)",padding:"4px 6px"}},
+      React.createElement("div",{style:{fontSize:"15px",fontWeight:900,color:"#ffffff"}},mil(r)),
+      React.createElement("div",{style:{fontSize:"10px",color:"#8fb0c9"}},p?"de "+mil(p):"no iba"),
+      React.createElement("div",{style:{fontSize:"11px",fontWeight:800,color:bien?"#4ade80":"#f87171"}},
+        (dif>0?"+":"")+mil(dif)+(pct===null?"":" ("+(pct>0?"+":"")+pct+"%)")));
+  }
+  function frase(sp,sr){
+    var d=sr-sp,pct=pctDe(sp,d);
+    if(!sp&&!sr)return {txt:"-",col:"#6b7280"};
+    if(d===0)return {txt:"justo",col:"#9fb8a4"};
+    return {txt:(d>0?"sobraron ":"faltaron ")+mil(Math.abs(d))+(pct===null?"":"  ("+(pct>0?"+":"")+pct+"%)"),
+            col:d>0?"#4ade80":"#f87171"};
   }
 
-  var totPro=0,totReal=0;
-  var filas=[];
+  /* ---- se arma todo por RANCHO: cada quien su bloque y su foto ---- */
+  var bloques=[],totPro=0,totReal=0,totSin=0,brecha=[];
   ranchos.forEach(function(rid){
     var subs=CULTIVOS.filter(function(cu){
       for(var d=0;d<7;d++){if(P(rid,cu,d)||R(rid,cu,d))return true}
       return false;
     });
     if(!subs.length)return;
-    filas.push(React.createElement("tr",{key:"h"+rid},
-      React.createElement("td",{className:"lbl",colSpan:11,
-        style:{background:"#102a14",color:"#7ee08f",fontSize:"13px"}},ranLbl(rid))));
-    subs.forEach(function(cu){
-      var sp=0,sr=0;
-      var cs=[];
+    var rp=0,rr=0,rsin=0,rnsin=0;
+    var porDia=[0,1,2,3,4,5,6].map(function(){return {p:0,r:0,hay:false}});
+    var fils=subs.map(function(cu){
+      var sp=0,sr=0,spSin=0,nSin=0,cs=[];
       for(var d=0;d<7;d++){
-        var p=P(rid,cu,d),r=R(rid,cu,d);
-        var hay=!!real.dias["dia|"+d]||r>0;
-        sp+=p;sr+=r;
-        cs.push(React.createElement(React.Fragment,{key:d},celda(p,r,hay)));
+        var p=P(rid,cu,d),r=R(rid,cu,d),hay=hayDia(rid,cu,d);
+        if(hay){sp+=p;sr+=r;porDia[d].p+=p;porDia[d].r+=r;porDia[d].hay=true;}
+        else if(p){spSin+=p;nSin++;}
+        cs.push(celda(p,r,hay,d));
       }
-      totPro+=sp;totReal+=sr;
-      var dif=sr-sp,pct=sp>0?Math.round(dif*100/sp):null;
-      filas.push(React.createElement("tr",{key:rid+cu},
-        React.createElement("td",{className:"lbl",style:{paddingLeft:"18px",color:"#cfe8d4"}},cu),
+      rp+=sp;rr+=sr;rsin+=spSin;if(nSin>nsinMax(rnsin,nSin))rnsin=nSin;
+      if(sp||sr)brecha.push({ran:ranLbl(rid),cu:cu,p:sp,r:sr,d:sr-sp,sin:spSin,nSin:nSin});
+      var fr=frase(sp,sr);
+      return React.createElement("tr",{key:cu},
+        React.createElement("td",{className:"lbl",style:{color:"#e6edf3",paddingLeft:"12px"}},cu),
         cs,
-        React.createElement("td",{style:{background:"#0d1c0f",fontWeight:800}},mil(sp)),
-        React.createElement("td",{style:{background:"#0d1c0f",fontWeight:800}},mil(sr)),
-        React.createElement("td",{style:{background:"#0d1c0f",fontWeight:800,
-          color:dif>0?"#4ade80":dif<0?"#f87171":"#9fb8a4"}},
-          (dif>0?"+":"")+mil(dif),
-          React.createElement("div",{style:{fontSize:"10px",opacity:.75}},
-            pct===null?"":(pct>0?"+":"")+pct+"%"))));
+        React.createElement("td",{style:{background:"#0b1520",color:"#8fb0c9",fontWeight:800}},mil(sp)),
+        React.createElement("td",{style:{background:"#0b1520",color:"#ffffff",fontWeight:900}},mil(sr)),
+        React.createElement("td",{style:{background:"#0b1520",color:fr.col,fontWeight:800,fontSize:"11px"}},fr.txt,
+          spSin?React.createElement("div",{style:{fontSize:"10px",color:"#d6a93a",fontWeight:600}},
+            nSin+(nSin===1?" dia":" dias")+" sin cierre, "+mil(spSin)+" rejas sin comparar"):null));
     });
+    totPro+=rp;totReal+=rr;totSin+=rsin;
+    // renglon total del rancho
+    var tds=[0,1,2,3,4,5,6].map(function(d){
+      var x=porDia[d];
+      if(!x.hay)return React.createElement("td",{key:d,style:{color:"#6b6042",background:"#1a1505",fontSize:"11px",fontWeight:700}},"sin cierre");
+      var dd=x.r-x.p,pc=pctDe(x.p,dd);
+      return React.createElement("td",{key:d,style:{background:dd>0?"rgba(34,197,94,.22)":dd<0?"rgba(239,68,68,.22)":"rgba(255,255,255,.05)"}},
+        React.createElement("div",{style:{fontSize:"14px",fontWeight:900,color:"#ffffff"}},mil(x.r)),
+        React.createElement("div",{style:{fontSize:"10px",color:"#8fb0c9"}},"de "+mil(x.p)),
+        React.createElement("div",{style:{fontSize:"11px",fontWeight:900,color:dd>=0?"#4ade80":"#f87171"}},
+          (dd>0?"+":"")+mil(dd)+(pc===null?"":" ("+(pc>0?"+":"")+pc+"%)")));
+    });
+    var frR=frase(rp,rr);
+    fils.push(React.createElement("tr",{key:"_tot"},
+      React.createElement("td",{className:"lbl",style:{color:colRan(rid),fontWeight:900}},"TOTAL"),
+      tds,
+      React.createElement("td",{style:{background:"#0b1520",color:"#8fb0c9",fontWeight:900}},mil(rp)),
+      React.createElement("td",{style:{background:"#0b1520",color:"#ffffff",fontWeight:900}},mil(rr)),
+      React.createElement("td",{style:{background:"#0b1520",color:frR.col,fontWeight:900,fontSize:"12px"}},frR.txt)));
+
+    bloques.push(React.createElement("div",{key:rid,id:"ran-"+rid,
+      style:{border:"1px solid "+colRan(rid),borderRadius:"12px",overflow:"hidden",marginBottom:"16px",background:"#060e06"}},
+      React.createElement("div",{style:{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap",
+        padding:"10px 14px",background:"rgba(255,255,255,.04)",borderBottom:"1px solid "+colRan(rid)}},
+        React.createElement("div",{style:{fontSize:"18px",fontWeight:900,color:colRan(rid),letterSpacing:".5px"}},ranLbl(rid)),
+        React.createElement("div",{style:{fontSize:"11px",color:"#7f9483"}},sem+" al "+masDias(sem,6)+"  -  rejas"),
+        React.createElement("span",{style:{flex:1}}),
+        React.createElement("div",{style:{display:"flex",gap:"8px",flexWrap:"wrap"}},
+          [{l:"Proyecto",v:mil(rp),c:"#8fb0c9"},
+           {l:"Corto",v:mil(rr),c:"#ffffff"},
+           {l:"Diferencia",v:frR.txt,c:frR.col},
+           {l:"Cumplimiento",v:rp>0?Math.round(rr*100/rp)+"%":"-",c:rr>=rp?"#4ade80":"#f87171"}].map(function(k){
+            return React.createElement("div",{key:k.l,style:{background:"#0b1520",border:"1px solid #1e3346",
+              borderRadius:"8px",padding:"5px 12px",minWidth:"96px"}},
+              React.createElement("div",{style:{fontSize:"10px",color:"#6b8a9f",fontWeight:800,letterSpacing:".4px"}},k.l.toUpperCase()),
+              React.createElement("div",{style:{fontSize:"15px",fontWeight:900,color:k.c}},k.v));
+          })),
+        React.createElement("button",{className:"btn","data-nofoto":"1",
+          onClick:function(){compartir("ran-"+rid,ranLbl(rid).toLowerCase())}},"Compartir")),
+      React.createElement("table",null,
+        React.createElement("thead",null,
+          React.createElement("tr",null,
+            React.createElement("th",{className:"lbl",style:{background:"#0b1520",color:"#cfe8d4"}},"Cultivo"),
+            DIAS.map(function(dn,i){
+              var hh=!!(real.dias&&real.dias["dia|"+i]);
+              // El domingo casi nunca lo cierra recibo: se captura a mano y
+              // solo vale para los renglones que se capturaron.
+              var man=(i===2&&!hh&&real.dcap&&Object.keys(real.dcap).length);
+              var et=hh?"cerrado":man?"a mano":"sin cierre";
+              return React.createElement("th",{key:dn,style:{background:"#0b1520"}},
+                React.createElement("div",{style:{color:"#e6edf3",fontSize:"12px"}},dn),
+                React.createElement("div",{style:{fontSize:"9px",color:"#6b8a9f"}},masDias(sem,i).slice(5)),
+                React.createElement("div",{style:{fontSize:"9px",fontWeight:800,
+                  color:hh?"#4ade80":man?"#8fb0c9":"#d6a93a"}},et));
+            }),
+            React.createElement("th",{style:{background:"#10263a",color:"#8fb0c9"}},"Proyecto"),
+            React.createElement("th",{style:{background:"#10263a",color:"#ffffff"}},"Corto"),
+            React.createElement("th",{style:{background:"#10263a",color:"#cfe8d4"}},"Diferencia"))),
+        React.createElement("tbody",null,fils))));
   });
+  function nsinMax(a,b){return a>b?a:b}
 
-  // resumen por cultivo
-  var resCu=CULTIVOS.map(function(cu){
-    var p=0,r=0;
-    ranchos.forEach(function(rid){for(var d=0;d<7;d++){p+=P(rid,cu,d);r+=R(rid,cu,d)}});
-    return {cu:cu,p:p,r:r};
-  }).filter(function(x){return x.p||x.r});
-
-  var filasHay=filas.length>0;
+  var filasHay=bloques.length>0;
   var difT=totReal-totPro,pctT=totPro>0?Math.round(difT*100/totPro):0;
 
   return React.createElement("div",null,
@@ -391,10 +464,10 @@ function App(){
       React.createElement("span",{style:{flex:1}}),
       ["dif","real","proy"].map(function(v){
         return React.createElement("button",{key:v,className:"btn"+(vista===v?" on":""),
-          onClick:function(){setVista(v)}},v==="dif"?"Diferencia":v==="real"?"Cortado":"Proyectado")}),
+          onClick:function(){setVista(v)}},v==="dif"?"Comparado":v==="real"?"Solo cortado":"Solo proyectado")}),
       React.createElement("button",{className:"btn"+(modoDom?" on":""),onClick:function(){setModoDom(!modoDom)}},"Domingo"),
       React.createElement("button",{className:"btn"+(diag?" on":""),onClick:function(){setDiag(!diag)}},"Diagnostico"),
-      React.createElement("button",{className:"btn",onClick:compartir},"Compartir")),
+      React.createElement("button",{className:"btn",onClick:function(){compartir("reporte","corte")}},"Compartir todo")),
 
     (diag||(est==="listo"&&!filasHay))?React.createElement("div",{"data-nofoto":"1",
       style:{border:"1px solid #7a5b12",borderRadius:"10px",padding:"10px",marginBottom:"12px",
@@ -407,7 +480,7 @@ function App(){
           (x.n?"OK  ":"VACIO  ")+x.k+"  ("+x.n+")   "+x.m);
       }),
       React.createElement("div",{style:{marginTop:"6px",color:"#9fb8a4",whiteSpace:"nowrap"}},
-        "Semana que estoy buscando: "+sem+"   (las claves de arriba deben empezar con esa fecha)"),
+        "Semana que estoy buscando: "+sem),
       D&&D.err?React.createElement("div",{style:{color:"#f87171"}},"Error: "+D.err):null):null,
 
     modoDom?React.createElement("div",{"data-nofoto":"1",
@@ -415,25 +488,27 @@ function App(){
       React.createElement("div",{style:{fontWeight:800,marginBottom:"8px",color:"#7ee08f"}},
         "Domingo "+masDias(sem,2)+" - rejas que llegaron (captura a mano)"),
       React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:"8px"}},
-        ranchos.length?[].concat.apply([],ranchos.map(function(rid){
-          return CULTIVOS.filter(function(cu){
-            for(var d=0;d<7;d++){if(P(rid,cu,d)||R(rid,cu,d))return true}return false;
-          }).map(function(cu){
+        [].concat.apply([],(function(){
+          var base=["pvt","crp","f4h","fepo"],vis={};
+          base.forEach(function(r){vis[r]=1});
+          ranchos.forEach(function(r){if(!vis[r]){vis[r]=1;base.push(r)}});
+          return base;
+        })().map(function(rid){
+          return CULTIVOS.map(function(cu){
             return React.createElement("label",{key:rid+cu,style:{display:"flex",gap:"6px",alignItems:"center",fontSize:"12px"}},
-              React.createElement("span",{style:{flex:1,color:"#9fb8a4"}},ranLbl(rid)+" "+cu),
+              React.createElement("span",{style:{flex:1,color:colRan(rid)}},ranLbl(rid)+" "+cu),
               React.createElement("input",{type:"number",style:{width:"90px"},
                 value:dom[rid+"|"+cu]===undefined?"":dom[rid+"|"+cu],
                 onChange:function(e){setDomV(rid,cu,e.target.value)}}));
           });
-        })):React.createElement("div",{style:{color:"#6b7280"}},"Sin ranchos todavia")),
+        }))),
       React.createElement("div",{style:{marginTop:"10px",display:"flex",gap:"8px",alignItems:"center"}},
         React.createElement("button",{className:"btn on",onClick:guardaDom},"Guardar domingo"),
         React.createElement("span",{style:{color:"#7ee08f",fontSize:"12px"}},guard))):null,
 
     React.createElement("div",{id:"reporte"},
-      React.createElement("div",{style:{marginBottom:"10px"}},
-        React.createElement("div",{style:{fontSize:"18px",fontWeight:900,color:"#7ee08f"}},
-          "Corte real vs proyectado"),
+      React.createElement("div",{style:{marginBottom:"12px"}},
+        React.createElement("div",{style:{fontSize:"20px",fontWeight:900,color:"#7ee08f"}},"Corte real vs proyectado"),
         React.createElement("div",{style:{fontSize:"12px",color:"#9fb8a4"}},
           "Semana "+sem+" al "+masDias(sem,6)+"  -  rejas"),
         est!=="listo"?React.createElement("div",{style:{fontSize:"12px",color:"#fbbf24"}},
@@ -442,53 +517,48 @@ function App(){
           "Al dia - ultima lectura "+(ult?ult.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"}):"")+
           " - se refresca sola cada 2 minutos")),
 
-      React.createElement("div",{style:{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"12px"}},
-        [{l:"Proyectado",v:mil(totPro),c:"#9fb8a4"},
-         {l:"Cortado",v:mil(totReal),c:"#e6edf3"},
-         {l:"Diferencia",v:(difT>0?"+":"")+mil(difT),c:difT>0?"#4ade80":difT<0?"#f87171":"#9fb8a4"},
+      React.createElement("div",{style:{display:"flex",gap:"10px",flexWrap:"wrap",marginBottom:"14px"}},
+        [{l:"Proyectaron",v:mil(totPro),c:"#8fb0c9",n:"dias con cierre"},
+         {l:"Cortaron",v:mil(totReal),c:"#ffffff",n:""},
+         {l:"Diferencia",v:(difT>0?"+":"")+mil(difT)+(totPro>0?"  ("+(pctT>0?"+":"")+pctT+"%)":""),
+          c:difT>=0?"#4ade80":"#f87171",n:""},
          {l:"Cumplimiento",v:totPro>0?Math.round(totReal*100/totPro)+"%":"-",
-          c:pctT>=0?"#4ade80":"#f87171"}].map(function(k){
-          return React.createElement("div",{key:k.l,style:{border:"1px solid #1e3a0e",borderRadius:"10px",
-            padding:"8px 16px",background:"#0a150a",minWidth:"130px"}},
-            React.createElement("div",{style:{fontSize:"11px",color:"#6b8a6f",fontWeight:700}},k.l),
-            React.createElement("div",{style:{fontSize:"20px",fontWeight:900,color:k.c}},k.v));
+          c:totReal>=totPro?"#4ade80":"#f87171",n:""}]
+        .concat(totSin?[{l:"Sin comparar",v:mil(totSin),c:"#d6a93a",n:"dias que recibo no cerro"}]:[])
+        .map(function(k){
+          return React.createElement("div",{key:k.l,style:{border:"1px solid #1e3346",borderRadius:"10px",
+            padding:"9px 18px",background:"#0b1520",minWidth:"140px"}},
+            React.createElement("div",{style:{fontSize:"11px",color:"#6b8a9f",fontWeight:800,letterSpacing:".5px"}},k.l.toUpperCase()),
+            React.createElement("div",{style:{fontSize:"22px",fontWeight:900,color:k.c}},k.v),
+            k.n?React.createElement("div",{style:{fontSize:"10px",color:"#54707f"}},k.n):null);
         })),
 
-      React.createElement("table",null,
-        React.createElement("thead",null,
-          React.createElement("tr",null,
-            React.createElement("th",{className:"lbl"},vista==="dif"?"Cortado - proyectado":vista==="real"?"Cortado":"Proyectado"),
-            DIAS.map(function(d,i){return React.createElement("th",{key:d},d,
-              React.createElement("div",{style:{fontSize:"9px",fontWeight:600,opacity:.6}},masDias(sem,i).slice(5)))}),
-            React.createElement("th",null,"Proy"),
-            React.createElement("th",null,"Real"),
-            React.createElement("th",null,"Dif"))),
-        React.createElement("tbody",null,filas.length?filas:
-          React.createElement("tr",null,React.createElement("td",{colSpan:11,style:{color:"#6b7280",padding:"18px"}},
-            est==="listo"?"No hay datos de esa semana":"...")))),
+      filasHay?bloques:React.createElement("div",{style:{color:"#6b7280",padding:"18px"}},
+        est==="listo"?"No hay datos de esa semana":"..."),
 
-      resCu.length?React.createElement("div",{style:{marginTop:"14px"}},
-        React.createElement("div",{style:{fontSize:"13px",fontWeight:800,color:"#7ee08f",marginBottom:"6px"}},"Resumen por cultivo"),
-        React.createElement("table",null,
-          React.createElement("thead",null,React.createElement("tr",null,
-            React.createElement("th",{className:"lbl"},"Cultivo"),
-            React.createElement("th",null,"Proyectado"),
-            React.createElement("th",null,"Cortado"),
-            React.createElement("th",null,"Diferencia"),
-            React.createElement("th",null,"Cumplimiento"))),
-          React.createElement("tbody",null,resCu.map(function(x){
-            var d=x.r-x.p;
-            return React.createElement("tr",{key:x.cu},
-              React.createElement("td",{className:"lbl"},x.cu),
-              React.createElement("td",null,mil(x.p)),
-              React.createElement("td",null,mil(x.r)),
-              React.createElement("td",{style:{color:d>0?"#4ade80":d<0?"#f87171":"#9fb8a4",fontWeight:700}},(d>0?"+":"")+mil(d)),
-              React.createElement("td",{style:{fontWeight:700}},x.p>0?Math.round(x.r*100/x.p)+"%":"-"));
-          })))):null,
+      brecha.length?React.createElement("div",{style:{marginTop:"4px"}},
+        React.createElement("div",{style:{fontSize:"14px",fontWeight:900,color:"#7ee08f",marginBottom:"7px"}},
+          "Lo que hay que ver"),
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",gap:"7px"}},
+          brecha.slice().sort(function(a,b){return Math.abs(b.d)-Math.abs(a.d)}).slice(0,8).map(function(x,i){
+            var pct=pctDe(x.p,x.d),arriba=x.d>0;
+            return React.createElement("div",{key:i,style:{border:"1px solid #1e3a0e",borderRadius:"8px",
+              padding:"7px 10px",background:"#0a150a",fontSize:"12px",
+              borderLeft:"4px solid "+(x.d===0?"#3f5142":arriba?"#4ade80":"#f87171")}},
+              React.createElement("span",{style:{fontWeight:900,color:"#e6edf3"}},x.ran+" "+x.cu+": "),
+              x.d===0?React.createElement("span",{style:{color:"#9fb8a4"}},"justo lo proyectado ("+mil(x.p)+" rejas)")
+              :React.createElement("span",{style:{color:arriba?"#4ade80":"#f87171"}},
+                "iban "+mil(x.p)+" y cortaron "+mil(x.r)+", "+
+                (arriba?"se fueron arriba ":"se quedaron cortos ")+mil(Math.abs(x.d))+" rejas"+
+                (pct===null?"":" ("+(pct>0?"+":"")+pct+"%)")),
+              x.sin?React.createElement("div",{style:{color:"#d6a93a",fontSize:"11px",marginTop:"2px"}},
+                "Ojo: "+x.nSin+(x.nSin===1?" dia":" dias")+" sin cierre en recibo, "+mil(x.sin)+" rejas sin comparar"):null);
+          }))):null,
 
-      React.createElement("div",{style:{marginTop:"10px",fontSize:"11px",color:"#6b8a6f"}},
-        "s/d = recibo no tiene ese dia cerrado, no quiere decir que no cortaron.  ",
-        "El domingo se captura a mano con el boton Domingo.  ",BUILD)));
+      React.createElement("div",{style:{marginTop:"12px",fontSize:"11px",color:"#6b8a6f"}},
+        "En cada dia: lo que cortaron, de cuanto iban, y la diferencia en rejas y por ciento.  ",
+        "\"sin cierre\" = recibo no cerro ese dia; esas rejas no entran a la comparacion.  ",
+        "El domingo se captura a mano con el boton Domingo, y solo cuenta el rancho y cultivo que se capturo.  ",BUILD)));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 </script>

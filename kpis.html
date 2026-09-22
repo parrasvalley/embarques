@@ -1,0 +1,1089 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KPIs de Empaque</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#07100a;color:#e0ead0;font-family:system-ui,-apple-system,sans-serif}
+#root{min-height:100vh}
+table{border-collapse:collapse}
+.num{font-family:ui-monospace,Menlo,monospace}
+</style>
+</head><body><div id="root"></div>
+<script>
+var BUILD="v2026-09-22-KPI23";
+// Vigia de version: GitHub Pages sirve el archivo viejo desde cache y el
+// meta de no-cache no sirve. Se relee el propio archivo y si el BUILD
+// cambio, se recarga una vez.
+(function(){
+  try{
+    var n=parseInt(sessionStorage.getItem("kpi-rec")||"0",10);
+    if(n>=2)return;
+    fetch(location.pathname+"?v="+Date.now(),{cache:"no-store"}).then(function(r){return r.text()})
+    .then(function(t){var m=t.match(/var BUILD="([^"]+)"/);
+      if(m&&m[1]!==BUILD){sessionStorage.setItem("kpi-rec",String(n+1));location.reload(true);}});
+  }catch(e){}
+})();
+</script>
+<script type="text/babel">
+var uS=React.useState,uE=React.useEffect,uM=React.useMemo;
+var FB="https://parrasvalley-default-rtdb.firebaseio.com";
+function fget(k){return fetch(FB+"/"+k+".json?t="+Date.now()).then(function(r){return r.json()}).catch(function(){return null})}
+function fput(k,v){return fetch(FB+"/"+k+".json",{method:"PUT",
+  headers:{"Content-Type":"application/json"},body:JSON.stringify(v)})
+  .then(function(r){return r.ok}).catch(function(){return false})}
+function ni(v){var x=parseInt(v);return isNaN(x)?0:x}
+function nf(v){var x=parseFloat(v);return isNaN(x)?0:x}
+function r1(x){return Math.round(x*10)/10}
+function r2(x){return Math.round(x*100)/100}
+function mil(x){return Number(x||0).toLocaleString("en-US")}
+function pesos(x){return "$"+Math.round(x||0).toLocaleString("en-US")}
+// El costo por bulto anda en pesos con centavos: redondeado a entero se
+// pierde justo la diferencia que uno quiere ver de un dia a otro.
+function pesos2(x){return "$"+Number(x||0).toLocaleString("en-US",
+  {minimumFractionDigits:2,maximumFractionDigits:2})}
+function hoy(){var d=new Date(),m=d.getMonth()+1,dd=d.getDate();
+  return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd}
+function masDias(f,n){var d=new Date(f+"T12:00:00");d.setDate(d.getDate()+n);
+  var m=d.getMonth()+1,dd=d.getDate();
+  return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd}
+function aArr(x){if(!x)return [];return Array.isArray(x)?x.filter(Boolean):Object.values(x).filter(Boolean)}
+var DIASEM=["Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"];
+var DIA3=["Dom","Lun","Mar","Mie","Jue","Vie","Sab"];
+var MESNOM=["enero","febrero","marzo","abril","mayo","junio","julio","agosto",
+  "septiembre","octubre","noviembre","diciembre"];
+// El dia en palabras: "Jueves 17 de septiembre". Con la fecha sola uno se pierde.
+function diaLargo(f){var d=new Date(f+"T12:00:00");
+  return DIASEM[d.getDay()]+" "+d.getDate()+" de "+MESNOM[d.getMonth()]}
+function diaCorto(f){var d=new Date(f+"T12:00:00");
+  return DIA3[d.getDay()]+" "+d.getDate()}
+function tsISO(ts){if(!ts)return "";var d=new Date(ts),m=d.getMonth()+1,dd=d.getDate();
+  return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(dd<10?"0":"")+dd}
+var MES3={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+function dosD(n){n=parseInt(n,10);return (n<10?"0":"")+n}
+// Misma lectura de fechas que control de empaque: recibo las escribe de
+// muchas formas y todas tienen que caer en el dia correcto.
+function leeFechaTexto(f){
+  var s=String(f||"").toLowerCase().replace(/[.,]/g," ");
+  var m=s.match(/(\d{4})\s*[-\/]\s*(\d{1,2})\s*[-\/]\s*(\d{1,2})/);
+  if(m)return m[1]+"-"+dosD(m[2])+"-"+dosD(m[3]);
+  m=s.match(/(\d{1,2})\s*[-\/]\s*(\d{1,2})\s*[-\/]\s*(\d{4})/);
+  if(m)return m[3]+"-"+dosD(m[2])+"-"+dosD(m[1]);
+  s=s.replace(/\bde\b/g," ").replace(/\bdel\b/g," ");
+  m=s.match(/(\d{1,2})\s+([a-zñáéíóú]+)\s+(\d{4})/);
+  if(m&&MES3[m[2].slice(0,3)])return m[3]+"-"+dosD(MES3[m[2].slice(0,3)])+"-"+dosD(m[1]);
+  m=s.match(/([a-zñáéíóú]+)\s+(\d{1,2})\s+(\d{4})/);
+  if(m&&MES3[m[1].slice(0,3)])return m[3]+"-"+dosD(MES3[m[1].slice(0,3)])+"-"+dosD(m[2]);
+  return "";
+}
+function recISO(h){
+  var iso=leeFechaTexto((h&&h.fecha)||"");
+  if(iso)return iso;
+  if(h&&h.id){var d=new Date(h.id);if(d.getHours()<6)d=new Date(d.getTime()-6*3600000);
+    return d.getFullYear()+"-"+dosD(d.getMonth()+1)+"-"+dosD(d.getDate());}
+  return "";
+}
+
+/* ============ CONVERSION A CAJA BASE ============
+   La caja base de cada linea, que es como Miguel quiere medir todo:
+     Slicer  -> 36 CT      Europeo -> 12 CT
+     Persa   -> 20 LBS     Morron  -> 11 LB      Minibel -> 12X1
+   Todo lo empacado se convierte a esa caja antes de sumar, si no se
+   estarian sumando cajas de tamanos distintos. */
+var KG={"20lb":9.25,"20 lb":9.25,"8x2":7.60,"8x2lb":7.60,"12x1":5.70,"12x1lb":5.70,"11lb":5.13,
+  "12x8oz":2.88,"18lb":8.30,"18 lb":8.30,"25lb":11.57,"50lb":23.13,"bushel":27,"1/9 bushel":9.07,
+  "rpc 35lb":15.88,"verde rpc":13.61,"l":5.13,"xl":5.13,"jumbo":5.13,"8x6":5.44,"12x2":5.00};
+var PZ={"33ct":33,"18ct":18,"24ct":24,"36ct":36,"62ct":62,"12ct":12,"42ct":42};
+var KGN={},PZN={};
+function nk(p){return String(p||"").toLowerCase().replace(/\s+/g,"").replace(/lbs/g,"lb")}
+Object.keys(KG).forEach(function(k){KGN[nk(k)]=KG[k]});
+Object.keys(PZ).forEach(function(k){PZN[nk(k)]=PZ[k]});
+var KG_PZ_SLICER=0.270;
+function esBushel(p){var s=nk(p);return s.indexOf("1/9")>=0||s.indexOf("bushel")>=0}
+function esPlain(p){return String(p||"").toLowerCase().indexOf("plain")>=0}
+// Caja base de cada linea, en kilos
+var KG_BASE={Persa:9.25,Morron:5.13,Minibel:5.70};
+// Cuantas cajas BASE vale una caja de esta presentacion
+function cajasBase(pres,linea){
+  var p=nk(pres);
+  // PERSA: una sola presentacion, la caja de 20 LBS, tal cual, sin convertir.
+  // Primera = FANCY y XFANCY, segunda = MDL y MDS, tercera = CHOICE. Todas son
+  // la misma caja. Lo embolsado (12X1, 8X2) se va a la linea Embolsado.
+  if(linea==="Persa"&&/^20\s*lb/.test(p))return 1;
+  if(linea==="Slicer"){
+    var mct=p.match(/(\d{2})ct/);
+    if(mct)return parseInt(mct[1],10)/36;
+    if(p==="25lb")return 1;
+    if(p==="50lb")return 2;
+    if(esBushel(pres)||esPlain(pres))return 2;
+    var k=KGN[p];
+    return k!==undefined?k/(36*KG_PZ_SLICER):0;
+  }
+  if(linea==="Europeo"){
+    if(esBushel(pres))return 45/12;              // el bushel trae 45 piezas
+    var m2=p.match(/(\d{2})ct/);
+    if(m2)return parseInt(m2[1],10)/12;
+    if(p.indexOf("24s")>=0||p.indexOf("24'"+"s")>=0)return 2;
+    var pz=PZN[p];
+    return pz!==undefined?pz/12:0;
+  }
+  var base=KG_BASE[linea]||0;
+  if(!base)return 0;
+  if(esBushel(pres))return (linea==="Morron"?11.57:9.07)/base;
+  var kk=KGN[p];
+  if(kk!==undefined)return kk/base;
+  // Las presentaciones traen apellidos: "20 LBS MDL", "12X1 LBS STO",
+  // "20 LBS XFANCY"... El peso lo da el envase, no el apellido: se busca por
+  // como empieza (12X1, 8X2, 20 LB) y se ignora lo demas.
+  var m2=p.match(/^(\d+)x(\d+)/);
+  if(m2&&KGN[m2[1]+"x"+m2[2]]!==undefined)return KGN[m2[1]+"x"+m2[2]]/base;
+  var m3=p.match(/^(\d+)\s*lb/);
+  if(m3&&KGN[m3[1]+"lb"]!==undefined)return KGN[m3[1]+"lb"]/base;
+  // las de conteo que no tienen kilo propio se dejan fuera y se avisa
+  return 0;
+}
+var BASE_NOM={Slicer:"36 CT",Europeo:"12 CT",Persa:"20 LBS",Morron:"11 LB",Minibel:"12X1",Embolsado:"20 LBS"};
+// Lo que sale EMBOLSADO no es de la linea: son las bolsas. Todo el 12X1 y el
+// 8X2 del persa se le carga a Embolsado, no al Persa.
+function esEmbolsado(pres,linea){
+  if(linea!=="Persa")return false;
+  var p=nk(pres);
+  return p.indexOf("12x1")>=0||p.indexOf("8x2")>=0;
+}
+// Embolsado es un reproceso con su propia plantilla: se le carga su gente y
+// sus extras, pero no empaca fruta propia (sus bultos ya van en cada cultivo).
+var LINEAS=["Persa","Slicer","Europeo","Morron","Minibel","Embolsado"];
+// A que grupo pertenece cada area de la app de horas extras. Se lee por el
+// nombre, sin importar mayusculas ni acentos.
+//   PS  = Persa y Slicer (misma plantilla)      CH = chiles: Morron y Minibel
+//   Europeo, Embolsado, IND = indirectos (carton, embarques, calidad...)
+var AREAS_INDIRECTAS=["Carton","Embarques","Trazabilidad","Calidad","Mantenimiento","Descargas","Auxiliares"];
+function sinAc(x){return String(x||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+function grupoArea(a){
+  var n=sinAc(a);
+  if(n.indexOf("embols")>=0)return "Embolsado";
+  for(var i=0;i<AREAS_INDIRECTAS.length;i++){if(n.indexOf(sinAc(AREAS_INDIRECTAS[i]))>=0)return "IND";}
+  if(n.indexOf("persa")>=0)return "Persa";
+  if(n.indexOf("slicer")>=0)return "Slicer";
+  if(n.indexOf("europ")>=0||n.indexOf("euro")>=0)return "Europeo";
+  if(n.indexOf("minib")>=0||n.indexOf("mini b")>=0)return "Minibel";
+  if(n.indexOf("morr")>=0||n.indexOf("bell")>=0)return "Morron";
+  if(n.indexOf("chile")>=0)return "Chile";
+  return "";
+}
+// Destajo: los que van por pieza y NO cuentan en el jornal del dia.
+var DESTAJO0={ps:11,emb:21,eu:3,ch:5};
+
+/* AJUSTES QUE YA VIENEN PUESTOS
+   Dias que Miguel ya aclaro y que ninguna app puede saber sola. Se aplican
+   siempre, sin que nadie tenga que picarle nada. Si algun dia se corrige desde
+   el boton "Ajuste del dia", lo guardado en Firebase manda sobre esto.
+     h = horas que de verdad trabajo esa linea   a = a donde se va el resto */
+var AJUSTES_FIJOS={
+  // 21 sep 2026: minibel no corto. Solo una tarima de reproceso dentro del
+  // turno; esa gente se fue al persa. Minibel queda en cero.
+  "2026-09-21":{ "Minibel":{h:0,a:"Persa"} }
+};
+function conFijos(g){
+  var out=JSON.parse(JSON.stringify(g||{}));
+  Object.keys(AJUSTES_FIJOS).forEach(function(f){
+    out[f]=out[f]||{};
+    Object.keys(AJUSTES_FIJOS[f]).forEach(function(L){
+      if(!out[f][L])out[f][L]=AJUSTES_FIJOS[f][L];
+    });
+  });
+  return out;
+}
+
+function App(){
+  // Arranca en AYER: hoy todavia no cierra nadie. El 18 se ve el 17.
+  var s1=uS(masDias(hoy(),-1)),fecha=s1[0],setFecha=s1[1];
+  var s2=uS(360),jornal=s2[0],setJornal=s2[1];
+  var s3=uS(8),jornada=s3[0],setJornada=s3[1];
+  var s4=uS(1),desfase=s4[0],setDesfase=s4[1];   // las extras se capturan 1 dia despues
+  // Persa y Slicer son la MISMA gente. De esa plantilla se sacan los
+  // empacadores, que van por destajo y no cuentan como jornal, y lo que queda
+  // se parte en dos: mitad Persa, mitad Slicer.
+  var s4b=uS(DESTAJO0),DJ=s4b[0],setDJ=s4b[1];
+  function setD1(k,v){var n=Object.assign({},DJ);n[k]=v;setDJ(n)}
+  var s5=uS(null),D=s5[0],setD=s5[1];
+  var s6=uS("cargando"),est=s6[0],setEst=s6[1];
+  var s7=uS(14),nDias=s7[0],setNDias=s7[1];
+  // AJUSTES DEL DIA: hay dias en que una linea casi no trabajo (no cortaron y
+  // solo hicieron una tarima de reproceso). Se le pone las horas que de verdad
+  // trabajo y a donde se va el resto del jornal de esa gente.
+  var s8=uS(conFijos({})),ajus=s8[0],setAjus=s8[1];
+  var s9=uS(false),verAj=s9[0],setVerAj=s9[1];
+  var s10=uS(""),avAj=s10[0],setAvAj=s10[1];
+  var aj=ajus[fecha]||{};
+  function setAj(L,campo,val){
+    var n=JSON.parse(JSON.stringify(ajus));
+    if(!n[fecha])n[fecha]={};
+    if(!n[fecha][L])n[fecha][L]={h:jornada,a:""};
+    n[fecha][L][campo]=val;
+    if(nf(n[fecha][L].h)===jornada&&!n[fecha][L].a)delete n[fecha][L];
+    if(!Object.keys(n[fecha]).length)delete n[fecha];
+    setAjus(n);setAvAj("Guardando...");
+    fput("kpi-ajustes-v1",n).then(function(ok){setAvAj(ok?"Guardado":"No se pudo guardar");
+      setTimeout(function(){setAvAj("")},2500);});
+  }
+
+  uE(function(){
+    try{
+      var g=JSON.parse(localStorage.getItem("kpi-cfg")||"null");
+      if(g){if(g.jornal)setJornal(g.jornal);if(g.jornada)setJornada(g.jornada);
+        if(g.desfase!==undefined)setDesfase(g.desfase);
+      }
+      var dj=JSON.parse(localStorage.getItem("kpi-destajo2")||"null");
+      if(dj)setDJ(Object.assign({},DESTAJO0,dj));
+    }catch(e){}
+  },[]);
+  uE(function(){
+    try{localStorage.setItem("kpi-cfg",JSON.stringify({jornal:jornal,jornada:jornada,desfase:desfase}));
+        localStorage.setItem("kpi-destajo2",JSON.stringify(DJ))}catch(e){}
+  },[jornal,jornada,desfase,DJ]);
+
+  uE(function(){
+    var vivo=true;
+    setEst("cargando");
+    Promise.all([fget("recibo-inv-v1"),fget("recibo-hist-v1"),fget("produccion-v1"),
+                 fget("extras-plantilla-v1"),fget("extras-registros-v1"),fget("extras-hist-v2"),
+                 fget("kpi-ajustes-v1")])
+      .then(function(v){
+        if(!vivo)return;
+        setD({rec:v[0],recH:v[1],prd:v[2],plant:v[3],regs:v[4],hist:v[5]});
+        setAjus(conFijos(v[6]));
+        setEst("listo");
+      }).catch(function(){if(vivo)setEst("error")});
+    var t=setInterval(function(){
+      if(document.hidden)return;
+      Promise.all([fget("recibo-inv-v1"),fget("recibo-hist-v1"),fget("produccion-v1"),
+                   fget("extras-plantilla-v1"),fget("extras-registros-v1"),fget("extras-hist-v2")])
+        .then(function(v){if(vivo)setD({rec:v[0],recH:v[1],prd:v[2],plant:v[3],regs:v[4],hist:v[5]})});
+    },180000);
+    return function(){vivo=false;clearInterval(t)};
+  },[]);
+
+  /* ---- REJAS QUE LLEGARON, por linea y por dia ---- */
+  function rejasDe(f){
+    var out={};LINEAS.forEach(function(L){out[L]=0});
+    if(!D)return out;
+    // OJO: al cerrar el dia, recibo mueve los lotes del dia abierto al
+    // historial. Si por lo que sea siguen en los dos lados, sumarlos contaria
+    // la misma fruta dos veces. Por eso: si ya hay cierre de esa linea ese
+    // dia, MANDA EL CIERRE y el dia abierto no se toca.
+    LINEAS.forEach(function(L){
+      var cn=L.toLowerCase(),cerrado=0,abierto=0;
+      aArr(D.recH).forEach(function(h){
+        if(!h||String(h.lineaNombre||"").toLowerCase()!==cn)return;
+        if(recISO(h)!==f)return;
+        aArr(h.lotes).forEach(function(l){if(l&&l.rancho)cerrado+=ni(l.cajas)});
+      });
+      aArr((((D.rec||{})[cn])||{}).lotes).forEach(function(l){
+        if(!l||!l.rancho)return;
+        if(tsISO(l.ts)!==f)return;
+        abierto+=ni(l.cajas);
+      });
+      out[L]=cerrado>0?cerrado:abierto;
+    });
+    return out;
+  }
+
+  /* ---- CAJAS BASE EMPACADAS, por linea y por dia ---- */
+  // Hora en que se registro una tarima en produccion. Se busca en los campos
+  // que pueda traer; si el id es un sello de tiempo (Date.now) tambien sirve.
+  function tsTarima(r,f){
+    var c=[r.ts,r.timestamp,r.creado,r.createdAt,r.hora,r.horaRegistro];
+    for(var i=0;i<c.length;i++){
+      var v=c[i];if(v===undefined||v===null||v==="")continue;
+      if(typeof v==="number"&&v>1e12)return v;
+      var sv=String(v);
+      var mh=sv.match(/^(\d{1,2}):(\d{2})/);
+      if(mh)return new Date(f+"T"+dosD(mh[1])+":"+mh[2]+":00").getTime();
+      if(/^\d{13}$/.test(sv))return +sv;
+      var d=Date.parse(sv);if(!isNaN(d))return d;
+    }
+    var mid=String(r.id||"").match(/(\d{13})/);
+    if(mid){var n=+mid[1];if(n>1.5e12&&n<2.5e12)return n;}
+    return 0;
+  }
+  function basesDe(f){
+    var out={},sinConv={},t0={},t1={};LINEAS.forEach(function(L){out[L]=0});
+    if(!D||!D.prd)return {base:out,sinConv:sinConv,t0:t0,t1:t1};
+    LINEAS.forEach(function(L){
+      var po=D.prd[L];if(!po)return;
+      var todos=aArr(po.inventario)
+        .concat(aArr(po.bajados))
+        .concat(aArr(po.registros).filter(function(r){return r&&r._descontadoPedido}));
+      var visto={};
+      todos.forEach(function(r){
+        if(!r)return;
+        var f1=r.fechaInventario||"",f2=r.fecha||"";
+        if(f1!==f&&f2!==f)return;
+        var t=String(r.tipo||"").toLowerCase().replace(/[\s_-]/g,"");
+        if(t.indexOf("reproces")>=0)return;
+        if(t.indexOf("conversion")>=0&&t.indexOf("hoy")<0)return;
+        var fo=r.fechaOrigen||r.fechaPalletOrigen||r.fechaOrig||"";
+        if(fo&&fo!==f)return;
+        if(r.id){if(visto[r.id])return;visto[r.id]=1}
+        var fac=cajasBase(r.presentacion,L);
+        if(fac<=0){var kk=String(r.presentacion||"(sin presentacion)");
+          sinConv[L+" | "+kk]=(sinConv[L+" | "+kk]||0)+ni(r.cajas);return;}
+        var dest=esEmbolsado(r.presentacion,L)?"Embolsado":L;
+        out[dest]+=ni(r.cajas)*fac;
+        var tt=tsTarima(r,f);
+        if(tt){if(!t0[dest]||tt<t0[dest])t0[dest]=tt;if(!t1[dest]||tt>t1[dest])t1[dest]=tt;}
+      });
+    });
+    LINEAS.forEach(function(L){out[L]=Math.round(out[L])});
+    return {base:out,sinConv:sinConv,t0:t0,t1:t1};
+  }
+
+  /* ---- PLANTILLA: cuantas personas tiene cada area ---- */
+  function personasArea(a){
+    var p=(D&&D.plant&&D.plant[a])||null;
+    if(!p)return 0;
+    return aArr(p.foraneos).length+aArr(p.locales).length;
+  }
+
+  /* ---- HORAS EXTRAS de un dia de trabajo.
+     OJO CON LA FECHA: las extras se capturan al dia siguiente (cierran el dia
+     de ayer a mediodia). Por eso lo que en la app de extras aparece con fecha
+     F+1 es en realidad el trabajo del dia F. El desfase se puede cambiar. ---- */
+  function extrasDe(f){
+    var fx=masDias(f,desfase);
+    var porArea={},precioDia=null;
+    if(!D)return {porArea:porArea,fx:fx,cerrado:false,precio:50};
+    var cerrado=false;
+    aArr(D.hist).forEach(function(e){
+      // La app de extras guarda la fecha como la teclean: "20/09/2026"
+      // (DD/MM/AAAA). Se traduce antes de comparar.
+      if(!e||leeFechaTexto(e.fecha)!==fx)return;
+      cerrado=true;
+      if(e.precio)precioDia=nf(e.precio);
+      Object.keys(e.areas||{}).forEach(function(a){
+        aArr(e.areas[a]).forEach(function(r){
+          var dest=r.areaExtra||a;
+          if(!porArea[dest])porArea[dest]={horas:0,costo:0,gente:{}};
+          var pr=nf(r.precio)||precioDia||50;
+          porArea[dest].horas+=nf(r.horas);
+          porArea[dest].costo+=nf(r.horas)*pr;
+          porArea[dest].gente[r.nombre]=1;
+        });
+      });
+    });
+    if(!cerrado&&D.regs){
+      Object.keys(D.regs).forEach(function(k){
+        var pp=k.split("|");
+        if(leeFechaTexto(pp[0])!==fx)return;
+        aArr(D.regs[k]).forEach(function(r){
+          var dest=r.areaExtra||pp[1];
+          if(!porArea[dest])porArea[dest]={horas:0,costo:0,gente:{}};
+          var pr=nf(r.precio)||50;
+          porArea[dest].horas+=nf(r.horas);
+          porArea[dest].costo+=nf(r.horas)*pr;
+          porArea[dest].gente[r.nombre]=1;
+        });
+      });
+    }
+    return {porArea:porArea,fx:fx,cerrado:cerrado,precio:precioDia||50};
+  }
+
+  /* ---- SEMAFORO: que app ya solto sus datos de ese dia y cual falta.
+     Si una falta, casi siempre es que no han cerrado el dia alla. ---- */
+  function semaforo(f){
+    var fx=masDias(f,desfase);
+    var out=[];
+    // RECIBO
+    var rCerr=0,rAb=0,rTot=0;
+    LINEAS.forEach(function(L){
+      var cn=L.toLowerCase(),c=0,ab=0;
+      aArr(D.recH).forEach(function(h){
+        if(!h||String(h.lineaNombre||"").toLowerCase()!==cn)return;
+        if(recISO(h)!==f)return;
+        aArr(h.lotes).forEach(function(l){if(l&&l.rancho)c+=ni(l.cajas)});
+      });
+      aArr(((D.rec||{})[cn]||{}).lotes).forEach(function(l){
+        if(l&&l.rancho&&tsISO(l.ts)===f)ab+=ni(l.cajas);
+      });
+      rCerr+=c;rAb+=ab;rTot+=(c>0?c:ab);
+    });
+    out.push({app:"Recibo de fruta",quien:"recibo",
+      ok:rTot>0, cerrado:rCerr>0,
+      dato:rTot>0?mil(rTot)+" rejas":"nada del "+f,
+      nota:rCerr>0?"dia cerrado":((rAb>0)?"sin cerrar, va lo del dia abierto":"")});
+    // PRODUCCION
+    var pc=0;
+    LINEAS.forEach(function(L){
+      var po=(D.prd||{})[L];if(!po)return;
+      aArr(po.inventario).concat(aArr(po.bajados))
+        .concat(aArr(po.registros).filter(function(r){return r&&r._descontadoPedido}))
+        .forEach(function(r){
+          if(!r)return;
+          if((r.fechaInventario||"")!==f&&(r.fecha||"")!==f)return;
+          pc+=ni(r.cajas);
+        });
+    });
+    out.push({app:"Produccion",quien:"produccion",ok:pc>0,cerrado:pc>0,
+      dato:pc>0?mil(pc)+" cajas":"nada del "+f,nota:""});
+    // HORAS EXTRAS
+    var ex=extrasDe(f);
+    var hh=0;Object.keys(ex.porArea).forEach(function(a2){hh+=ex.porArea[a2].horas});
+    out.push({app:"Horas extras",quien:"extras",ok:(ex.cerrado||hh>0),cerrado:ex.cerrado,
+      dato:(ex.cerrado||hh>0)?r1(hh)+" horas":"no se han capturado",
+      nota:(ex.cerrado?"dia cerrado":(hh>0?"sin cerrar, va lo capturado":"nadie ha capturado"))
+        +" · trabajo del "+diaCorto(f)+", capturado el "+diaCorto(ex.fx)});
+    // PLANTILLA
+    var per=0;Object.keys(D.plant||{}).forEach(function(a2){per+=personasArea(a2)});
+    out.push({app:"Plantilla",quien:"plantilla",ok:per>0,cerrado:per>0,
+      dato:per>0?per+" personas":"vacia",nota:""});
+    return out;
+  }
+
+  /* ---- EL CRUCE de un dia ---- */
+  function diaKPI(f){
+    var rej=rejasDe(f), bb=basesDe(f), ex=extrasDe(f);
+    var lineas={},totInd=0,totBase=0;
+    // Los indirectos NO se le cargan a ninguna linea ni se prorratean: se
+    // sacan aparte, con su propio costo por bulto contra todo lo empacado.
+    var indDet=[];
+    // Plantilla y extras por grupo, segun el nombre de cada area
+    var areas={};
+    Object.keys((D&&D.plant)||{}).forEach(function(a){areas[a]=1});
+    Object.keys(ex.porArea||{}).forEach(function(a){areas[a]=1});
+    var pob={Persa:0,Slicer:0,Europeo:0,Morron:0,Minibel:0,Chile:0,Embolsado:0};
+    var hxG={},cxG={};
+    Object.keys(areas).forEach(function(a){
+      var g=grupoArea(a),per=personasArea(a);
+      var hx=((ex.porArea[a]||{}).horas||0), cx=((ex.porArea[a]||{}).costo||0);
+      if(g==="IND"){
+        if(per===0&&hx===0&&cx===0)return;
+        indDet.push({area:a,gente:per,hx:r1(hx),cJor:per*jornal,cExt:cx,total:per*jornal+cx});
+        totInd+=per*jornal+cx;return;
+      }
+      if(!g)return;
+      pob[g]+=per; hxG[g]=(hxG[g]||0)+hx; cxG[g]=(cxG[g]||0)+cx;
+    });
+    indDet.sort(function(a,b){return b.total-a.total});
+    function menos(n,d){n=n-d;return n>0?n:0}
+    var gen={},hxL={},cxL={};
+    // Plantillas compartidas (Persa con Slicer, Morron con Minibel): si ese
+    // dia solo se empaco uno de los dos, se lleva a toda la gente; si hubo de
+    // los dos (o de ninguno), mitad y mitad.
+    function parte(a,b){var ha=(bb.base[a]||0)>0,hb=(bb.base[b]||0)>0;
+      return (ha&&!hb)?1:(hb&&!ha)?0:0.5}
+    function dice(a,b,x){return x===1?"todo a "+a:x===0?"todo a "+b:"mitad "+a+" y mitad "+b}
+    var ps=menos(pob.Persa+pob.Slicer,DJ.ps);
+    var pP=parte("Persa","Slicer");
+    gen.Persa=ps*pP; gen.Slicer=ps*(1-pP);
+    gen.Europeo=menos(pob.Europeo,DJ.eu);
+    gen.Embolsado=menos(pob.Embolsado,DJ.emb);
+    // Chiles: Morron y Minibel. Si ese dia solo hubo uno, se lleva a todos;
+    // si hubo los dos (o ninguno), mitad y mitad.
+    var ch=menos(pob.Morron+pob.Minibel+pob.Chile,DJ.ch);
+    var pM=parte("Morron","Minibel");
+    gen.Morron=ch*pM; gen.Minibel=ch*(1-pM);
+    ["Persa","Slicer","Europeo","Embolsado","Morron","Minibel"].forEach(function(L){
+      hxL[L]=hxG[L]||0; cxL[L]=cxG[L]||0;
+    });
+    // Las EXTRAS no se reparten: caen tal cual al area donde se reportaron.
+    // Un area llamada "Chile" es la del morron.
+    hxL.Morron+=(hxG.Chile||0); cxL.Morron+=(cxG.Chile||0);
+    var repChile=dice("Morron","Minibel",pM), repPS=dice("Persa","Slicer",pP);
+    // RENDIMIENTO DE LAS CUADRILLAS COMPARTIDAS. Persa-Slicer es UN solo grupo
+    // que va alternando las dos lineas (slicer, persa, slicer...), igual que
+    // Morron-Minibel. No se puede saber cuantas horas le toco a cada linea, asi
+    // que los bultos por hora se sacan del GRUPO: lo que sacaron las dos lineas
+    // entre las horas del grupo (jornada + extras por persona de las dos areas).
+    // El gasto, el costo y las extras de cada linea NO cambian.
+    var grupoDe={};
+    function grupo(A,B){
+      var gp=(gen[A]||0)+(gen[B]||0), hx=(hxL[A]||0)+(hxL[B]||0);
+      var g={nom:A+" + "+B,H:jornada+(gp>0?hx/gp:0),
+        base:(bb.base[A]||0)+(bb.base[B]||0),rejas:(rej[A]||0)+(rej[B]||0)};
+      grupoDe[A]=g;grupoDe[B]=g;
+    }
+    grupo("Persa","Slicer"); grupo("Morron","Minibel");
+    // Si una de las dos lineas trae ajuste del dia, ya no se miden como grupo:
+    // cada una con sus horas.
+    [["Persa","Slicer"],["Morron","Minibel"]].forEach(function(par){
+      if((ajus[f]||{})[par[0]]||(ajus[f]||{})[par[1]]){
+        delete grupoDe[par[0]];delete grupoDe[par[1]];
+      }
+    });
+    // AJUSTE DEL DIA: si una linea solo trabajo parte del turno, se le cobra
+    // esa parte del jornal y el resto se le carga a la linea donde estuvo esa
+    // gente. Ejemplo: minibel no corto, solo una hora de reproceso, y las otras
+    // 7 horas se fueron al persa.
+    var ajd=(ajus[f]||{}), mas={}, notaAj=[];
+    LINEAS.forEach(function(L){
+      var a=ajd[L];if(!a)return;
+      var h=nf(a.h);if(h<0)h=0;if(h>jornada)h=jornada;
+      var g=gen[L]||0, resto=g*jornal*(1-(jornada>0?h/jornada:1));
+      if(a.a&&resto>0){
+        mas[a.a]=mas[a.a]||{jor:0,hh:0,gente:0};
+        mas[a.a].jor+=resto; mas[a.a].hh+=g*(jornada-h);
+        mas[a.a].gente+=g*(1-(jornada>0?h/jornada:1));
+      }
+      notaAj.push(L+": "+r1(h)+" h"+(a.a?" (el resto a "+a.a+")":""));
+    });
+    LINEAS.forEach(function(L){
+      var gente=gen[L]||0,hx=hxL[L]||0,cx=cxL[L]||0;
+      var a=ajd[L], hTrab=a?Math.min(Math.max(nf(a.h),0),jornada):jornada;
+      var fac=jornada>0?hTrab/jornada:1;
+      var extra=mas[L]||{jor:0,hh:0,gente:0};
+      var gJor=gente*jornal*fac+extra.jor;
+      var gr=(a||extra.jor>0)?null:(grupoDe[L]||null);
+      var horasLinea=gr?gr.H:hTrab+(gente>0?hx/gente:0);
+      var hombreHora=gente*hTrab+hx+extra.hh;
+      // La gente se muestra donde se le pago: si la linea trabajo media
+      // jornada, la otra mitad aparece en la linea a la que se paso.
+      var genteMuestra=gente*fac+(extra.gente||0);
+      lineas[L]={gente:r1(genteMuestra),hx:r1(hx),cJor:gJor,cExt:cx,
+        rejas:rej[L]||0,base:bb.base[L]||0,horas:r1(horasLinea),hh:r1(hombreHora),grupo:gr,
+        ajuste:a?(r1(hTrab)+" h"+(a.a?", el resto a "+a.a:"")):(extra.jor>0?"trae horas de otra linea":"")};
+      totBase+=bb.base[L]||0;
+    });
+    LINEAS.forEach(function(L){
+      var x=lineas[L];
+      x.total=x.cJor+x.cExt;          // solo lo directo de la linea
+      x.costoBulto=x.base>0?x.total/x.base:0;
+      var gB=x.grupo?x.grupo.base:x.base;
+      x.bultosHora=x.horas>0?gB/x.horas:0;
+      x.bultosHH=x.hh>0?x.base/x.hh:0;
+      x.rejasHora=x.horas>0?(x.grupo?x.grupo.rejas:x.rejas)/x.horas:0;
+      x.basePorReja=x.rejas>0?x.base/x.rejas:0;
+      x.pesoExtras=x.total>0?x.cExt/x.total*100:0;
+    });
+    // Los indirectos cuentan como un area mas: su gente gana por dia, asi que
+    // entra en personas y en horas-hombre del empaque.
+    var indG=0,indHx=0,indCJor=0,indCExt=0;
+    indDet.forEach(function(a){indG+=a.gente;indHx+=a.hx;indCJor+=a.cJor;indCExt+=a.cExt});
+    return {f:f,lineas:lineas,ind:totInd,indDet:indDet,repChile:repChile,repPS:repPS,pob:pob,notaAj:notaAj,
+      indG:indG,indHx:indHx,indCJor:indCJor,indCExt:indCExt,indHH:indG*jornada+indHx,
+      indBulto:totBase>0?totInd/totBase:0,
+      totBase:totBase,ex:ex,sinConv:bb.sinConv};
+  }
+
+  var K=uM(function(){return D?diaKPI(fecha):null},[D,fecha,jornal,jornada,desfase,DJ,ajus]);
+  var SEM=uM(function(){return D?semaforo(fecha):[]},[D,fecha,desfase]);
+  var serie=uM(function(){
+    if(!D)return [];
+    var out=[];
+    for(var i=nDias-1;i>=0;i--){
+      var f=masDias(fecha,-i);
+      var k=diaKPI(f);
+      if(k.totBase>0)out.push(k);
+    }
+    return out;
+  },[D,fecha,jornal,jornada,desfase,nDias,DJ,ajus]);
+
+  var C={p:"#22c55e",s:"#38bdf8",e:"#a78bfa",m:"#f59e0b",n:"#ec4899"};
+  var COLOR={Persa:"#22c55e",Slicer:"#38bdf8",Europeo:"#a78bfa",Morron:"#f59e0b",Minibel:"#ec4899",Embolsado:"#94a3b8"};
+  var CAJA={background:"rgba(255,255,255,.03)",border:"1px solid rgba(255,255,255,.08)",
+    borderRadius:11,padding:"12px 14px",marginBottom:12};
+  var TH={padding:"6px 7px",textAlign:"right",fontSize:9,color:"#5a7a4a",fontWeight:800,
+    letterSpacing:.6,textTransform:"uppercase",whiteSpace:"nowrap"};
+  var TD={padding:"7px 7px",textAlign:"right",fontFamily:"ui-monospace,Menlo,monospace",fontSize:13};
+  var INP={background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.12)",
+    borderRadius:7,padding:"6px 9px",color:"#e0ead0",fontSize:13,outline:"none",
+    fontFamily:"ui-monospace,Menlo,monospace"};
+
+  function Tarjeta(p){
+    return (
+      <div style={{background:"rgba(255,255,255,.04)",border:"1px solid "+(p.bc||"rgba(255,255,255,.1)"),
+        borderRadius:10,padding:"10px 13px",flex:"1 1 150px",minWidth:140}}>
+        <div style={{fontSize:9,color:"#5a7a4a",fontWeight:800,letterSpacing:1.2,
+          textTransform:"uppercase",marginBottom:3}}>{p.t}</div>
+        <div style={{fontSize:22,fontWeight:900,color:p.col||"#e0ead0",
+          fontFamily:"ui-monospace,Menlo,monospace",lineHeight:1.15}}>{p.v}</div>
+        {p.sub&&<div style={{fontSize:10,color:"#5a7a4a",marginTop:2}}>{p.sub}</div>}
+      </div>
+    );
+  }
+
+  if(est==="cargando"&&!D)return (
+    <div style={{padding:40,textAlign:"center",color:"#5a7a4a"}}>Leyendo recibo, produccion y horas extras...</div>);
+  if(est==="error")return (
+    <div style={{padding:40,textAlign:"center",color:"#fca5a5"}}>No se pudo leer. Revisa la senal.</div>);
+
+  var tot=(function(){
+    var t={gente:0,hx:0,cJor:0,cExt:0,ind:0,total:0,rejas:0,base:0,hh:0,global:0};
+    if(!K)return t;
+    LINEAS.forEach(function(L){var x=K.lineas[L];
+      t.gente+=x.gente;t.hx+=x.hx;t.cJor+=x.cJor;t.cExt+=x.cExt;
+      t.total+=x.total;t.rejas+=x.rejas;t.base+=x.base;t.hh+=x.hh;});
+    t.ind=K.ind;                 // los indirectos van aparte, no repartidos
+    // pero su gente SI gana por dia: entra en personas, extras y horas-hombre
+    t.gente+=K.indG; t.hx+=K.indHx; t.cJor+=K.indCJor; t.cExt+=K.indCExt; t.hh+=K.indHH;
+    t.global=t.total+t.ind;      // directo + indirecto = lo que se gasto en el dia
+    return t;
+  })();
+
+  return (
+    <div style={{maxWidth:1250,margin:"0 auto",padding:"14px 12px 60px"}}>
+      {/* ENCABEZADO */}
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:12}}>
+        <div>
+          <div style={{fontSize:9,color:"#4a8a5a",fontWeight:800,letterSpacing:3,
+            textTransform:"uppercase"}}>Parras Valley Tomatoes</div>
+          <div style={{fontSize:19,fontWeight:900,color:"#a8e063"}}>KPIs de Empaque</div>
+          <div style={{fontSize:10,color:"#5a7a4a",fontWeight:700,fontFamily:"ui-monospace,Menlo,monospace"}}>{BUILD}</div>
+        </div>
+        <div style={{flex:1}}/>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:9,color:"#5a7a4a",fontWeight:800,letterSpacing:1.4,
+            textTransform:"uppercase"}}>Estas viendo</div>
+          <div style={{fontSize:15,fontWeight:900,color:"#a8e063"}}>
+            {diaLargo(fecha)}
+            {fecha===masDias(hoy(),-1)&&<span style={{fontSize:11,color:"#5a7a4a",
+              fontWeight:700,marginLeft:6}}>(ayer)</span>}
+          </div>
+        </div>
+        <input type="date" value={fecha} onChange={function(e){setFecha(e.target.value)}}
+          style={Object.assign({},INP,{fontSize:15,fontWeight:700})}/>
+        {fecha!==masDias(hoy(),-1)&&<button onClick={function(){setFecha(masDias(hoy(),-1))}}
+          style={{background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",
+            borderRadius:7,color:"#c0d0a0",fontWeight:800,fontSize:11,padding:"7px 12px",
+            cursor:"pointer"}}>IR A AYER</button>}
+      </div>
+
+      {/* SUPUESTOS */}
+      <div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"center",marginBottom:13,
+        background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.07)",
+        borderRadius:9,padding:"9px 12px"}}>
+        <span style={{fontSize:9,color:"#5a7a4a",fontWeight:800,letterSpacing:1.4,
+          textTransform:"uppercase"}}>Supuestos</span>
+        <label style={{fontSize:11,color:"#9ab08a",display:"flex",alignItems:"center",gap:5}}>
+          Jornal
+          <input type="number" value={jornal} onChange={function(e){setJornal(nf(e.target.value))}}
+            style={Object.assign({},INP,{width:76,padding:"4px 7px"})}/>
+        </label>
+        <label style={{fontSize:11,color:"#9ab08a",display:"flex",alignItems:"center",gap:5}}>
+          Jornada (hrs)
+          <input type="number" step="0.5" value={jornada} onChange={function(e){setJornada(nf(e.target.value))}}
+            style={Object.assign({},INP,{width:62,padding:"4px 7px"})}/>
+        </label>
+        <span style={{fontSize:11,color:"#9ab08a"}}>Destajo (no cuentan en jornal):</span>
+        {[["ps","Persa/Slicer"],["emb","Embolsado"],["eu","Europeo"],["ch","Chile"]].map(function(q){
+          return <label key={q[0]} style={{fontSize:11,color:"#9ab08a",display:"flex",alignItems:"center",gap:4}}>
+            {q[1]}
+            <input type="number" value={DJ[q[0]]} onChange={function(e){setD1(q[0],ni(e.target.value))}}
+              style={Object.assign({},INP,{width:50,padding:"4px 6px"})}/>
+          </label>;
+        })}
+        <label style={{fontSize:11,color:"#9ab08a",display:"flex",alignItems:"center",gap:5}}>
+          Extras se capturan
+          <select value={desfase} onChange={function(e){setDesfase(ni(e.target.value))}}
+            style={Object.assign({},INP,{padding:"4px 7px"})}>
+            <option value={0}>el mismo dia</option>
+            <option value={1}>al dia siguiente</option>
+            <option value={2}>dos dias despues</option>
+          </select>
+        </label>
+        {K&&<span style={{fontSize:10.5,color:K.ex.cerrado?"#4ade80":"#fbbf24",fontWeight:700}}>
+          {"horas extras del "+diaLargo(fecha)+", capturadas el "+diaLargo(K.ex.fx)
+            +(K.ex.cerrado?" (ya cerraron)":" (todavia sin cerrar, va lo capturado)")}
+        </span>}
+      </div>
+
+      {/* AJUSTE DEL DIA */}
+      <div style={{marginBottom:13}}>
+        <button onClick={function(){setVerAj(!verAj)}}
+          style={{background:verAj?"rgba(251,191,36,.14)":"rgba(255,255,255,.05)",
+            border:"1px solid "+(verAj?"rgba(251,191,36,.5)":"rgba(255,255,255,.12)"),
+            borderRadius:7,color:verAj?"#fbbf24":"#9ab08a",fontSize:11,fontWeight:800,
+            padding:"6px 12px",cursor:"pointer"}}>
+          Ajuste del dia{Object.keys(aj).length?" ("+Object.keys(aj).length+")":""}</button>
+        <span style={{fontSize:11,color:"#fbbf24",marginLeft:8}}>{avAj}</span>
+        {!verAj&&K&&K.notaAj.length>0&&<div style={{fontSize:10.5,color:"#fbbf24",marginTop:5}}>
+          {K.notaAj.join("  ·  ")}</div>}
+        {verAj&&(
+          <div style={{background:"rgba(255,255,255,.03)",border:"1px solid rgba(251,191,36,.3)",
+            borderRadius:9,padding:"10px 12px",marginTop:7}}>
+            <div style={{fontSize:11,color:"#9ab08a",marginBottom:8,lineHeight:1.5}}>
+              Si una linea no trabajo el turno completo, pon las horas que de verdad trabajo y a que
+              linea se va el resto del jornal de esa gente. Es solo para <b>{diaLargo(fecha)}</b>.
+            </div>
+            {LINEAS.map(function(L){
+              var a=aj[L]||{};
+              return (
+                <div key={L} style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,flexWrap:"wrap"}}>
+                  <span style={{fontSize:12,fontWeight:800,color:COLOR[L],width:90}}>{L}</span>
+                  <label style={{fontSize:11,color:"#9ab08a",display:"flex",alignItems:"center",gap:4}}>
+                    horas
+                    <input type="number" step="0.5" min="0" max={jornada}
+                      value={a.h!==undefined?a.h:jornada}
+                      onChange={function(e){setAj(L,"h",nf(e.target.value))}}
+                      style={Object.assign({},INP,{width:60,padding:"4px 6px"})}/>
+                  </label>
+                  <label style={{fontSize:11,color:"#9ab08a",display:"flex",alignItems:"center",gap:4}}>
+                    el resto a
+                    <select value={a.a||""} onChange={function(e){setAj(L,"a",e.target.value)}}
+                      style={Object.assign({},INP,{padding:"4px 6px"})}>
+                      <option value="">(nadie)</option>
+                      {LINEAS.filter(function(x){return x!==L}).map(function(x){
+                        return <option key={x} value={x}>{x}</option>;})}
+                    </select>
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* DE DONDE SALIO CADA COSA: que app ya solto y cual falta */}
+      {(function(){
+        var faltan=SEM.filter(function(x){return !x.ok});
+        var sinCerrar=SEM.filter(function(x){return x.ok&&!x.cerrado});
+        var mal=faltan.length>0;
+        return (
+          <div style={{background:mal?"rgba(239,68,68,.1)":(sinCerrar.length?"rgba(251,191,36,.1)":"rgba(74,222,128,.07)"),
+            border:"1px solid "+(mal?"rgba(239,68,68,.45)":(sinCerrar.length?"rgba(251,191,36,.4)":"rgba(74,222,128,.25)")),
+            borderRadius:10,padding:"11px 13px",marginBottom:13}}>
+            <div style={{fontSize:12.5,fontWeight:900,marginBottom:7,
+              color:mal?"#fca5a5":(sinCerrar.length?"#fbbf24":"#4ade80")}}>
+              {mal
+                ? "Falta que cierren "+faltan.length+" aplicacion(es). El reporte esta incompleto."
+                : (sinCerrar.length
+                    ? "Estan todas, pero "+sinCerrar.length+" sin cerrar todavia."
+                    : "Todas las aplicaciones ya soltaron el dia. Reporte completo.")}
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {SEM.map(function(x,i){
+                var col=x.ok?(x.cerrado?"#4ade80":"#fbbf24"):"#ef4444";
+                return (
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:7,
+                    background:"rgba(0,0,0,.28)",border:"1px solid "+col+"44",
+                    borderRadius:8,padding:"6px 11px",minWidth:178}}>
+                    <span style={{width:10,height:10,borderRadius:10,background:col,flex:"none",
+                      boxShadow:"0 0 7px "+col}}/>
+                    <div>
+                      <div style={{fontSize:11.5,fontWeight:900,color:"#e0ead0"}}>{x.app}</div>
+                      <div style={{fontSize:10.5,color:col,fontWeight:700,
+                        fontFamily:"ui-monospace,Menlo,monospace"}}>{x.dato}</div>
+                      {x.nota&&<div style={{fontSize:9.5,color:"#5a7a4a"}}>{x.nota}</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {mal&&(
+              <div style={{fontSize:11,color:"#e0b0b0",marginTop:8,lineHeight:1.6}}>
+                Diles que cierren el dia en: <b style={{color:"#fca5a5"}}>
+                {faltan.map(function(x){return x.app}).join(", ")}</b>.
+                Mientras no cierren, los numeros de abajo salen cortos.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* RESUMEN DEL DIA */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>
+        <Tarjeta t="Gasto del dia" v={pesos(tot.global)} col="#fbbf24" bc="rgba(251,191,36,.3)"
+          sub={pesos(tot.total)+" de lineas + "+pesos(tot.ind)+" de indirectos"}/>
+        <Tarjeta t="Bultos empacados" v={mil(tot.base)} col="#4ade80" bc="rgba(74,222,128,.3)"
+          sub="cada linea en su caja: Persa 20 LBS, Slicer 36 CT, Euro 12 CT..."/>
+        <Tarjeta t="Costo por bulto" v={tot.base>0?pesos2(tot.global/tot.base):"-"} col="#38bdf8"
+          bc="rgba(56,189,248,.3)"
+          sub={tot.base>0?(pesos2(tot.total/tot.base)+" linea + "+pesos2(tot.ind/tot.base)+" indirecto"):""}/>
+        <Tarjeta t="Rejas recibidas" v={mil(tot.rejas)} col="#a8e063"
+          sub={tot.rejas>0?r2(tot.base/tot.rejas)+" bultos por reja":""}/>
+        <Tarjeta t="Personas" v={mil(tot.gente)} col="#e0ead0"
+          sub={r1(tot.hx)+" horas extras"}/>
+        <Tarjeta t="Bultos por hombre-hora" v={tot.hh>0?r2(tot.base/tot.hh):"-"} col="#c0d0a0"
+          sub={r1(tot.hh)+" horas-hombre"}/>
+      </div>
+
+      {/* TABLA POR LINEA */}
+      <div style={CAJA}>
+        <div style={{fontSize:9,color:"#5a7a4a",fontWeight:800,letterSpacing:1.6,
+          textTransform:"uppercase",marginBottom:8}}>Por linea &middot; {diaLargo(fecha)} &middot; {fecha}</div>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",fontSize:12}}>
+            <thead>
+              <tr>
+                <th style={Object.assign({},TH,{textAlign:"left"})}>Linea</th>
+                <th style={TH}>Rejas llegadas</th>
+                <th style={TH}>Bultos empacados</th>
+                <th style={TH}>Personas</th>
+                <th style={TH}>Horas extra</th>
+                <th style={TH}>Gasto jornal</th>
+                <th style={TH}>Gasto extras</th>
+                <th style={Object.assign({},TH,{color:"#fbbf24"})}>Gasto de linea</th>
+                <th style={Object.assign({},TH,{color:"#38bdf8"})}>Costo por bulto</th>
+                <th style={TH}>Horas de linea</th>
+                <th style={TH}>Bultos por hora</th>
+                <th style={TH}>Rejas por hora</th>
+                <th style={TH}>Bultos por reja</th>
+              </tr>
+            </thead>
+            <tbody>
+              {LINEAS.map(function(L){
+                var x=K?K.lineas[L]:null;
+                if(!x||(x.base===0&&x.rejas===0&&x.gente===0&&!x.hx&&!x.cExt))return null;
+                return (
+                  <tr key={L} style={{borderTop:"1px solid rgba(255,255,255,.06)"}}>
+                    <td style={{padding:"7px 7px",fontWeight:900,color:COLOR[L]}}>
+                      {L}<span style={{fontSize:9,color:"#5a7a4a",fontWeight:700,marginLeft:6}}>{"bulto = "+BASE_NOM[L]}</span>
+                    </td>
+                    <td style={TD}>{mil(x.rejas)}</td>
+                    <td style={Object.assign({},TD,{fontWeight:900,color:"#4ade80"})}>{mil(x.base)}</td>
+                    <td style={TD}>{x.gente}</td>
+                    <td style={TD}>{x.hx||"-"}</td>
+                    <td style={Object.assign({},TD,{color:"#9ab08a"})}>{pesos(x.cJor)}</td>
+                    <td style={Object.assign({},TD,{color:x.cExt?"#fbbf24":"#4a6a3a"})}>{x.cExt?pesos(x.cExt):"-"}</td>
+                    <td style={Object.assign({},TD,{fontWeight:900,color:"#fbbf24"})}>{pesos(x.total)}</td>
+                    <td style={Object.assign({},TD,{fontWeight:900,color:"#38bdf8"})}>
+                      {x.base>0?pesos2(x.costoBulto):"-"}</td>
+                    <td style={TD}>{x.horas>0?r1(x.horas):"-"}
+                      {x.grupo&&<div style={{fontSize:9,color:"#5a7a4a",fontFamily:"system-ui"}}>grupo</div>}
+                      {x.ajuste&&<div style={{fontSize:9,color:"#fbbf24",fontFamily:"system-ui",
+                        whiteSpace:"normal",maxWidth:130,marginLeft:"auto"}}>{x.ajuste}</div>}</td>
+                    <td style={TD}>{(x.grupo?x.grupo.base:x.base)>0?r1(x.bultosHora):"-"}
+                      {x.grupo&&<div style={{fontSize:9,color:"#5a7a4a",fontFamily:"system-ui"}}>{x.grupo.nom}</div>}</td>
+                    <td style={TD}>{(x.grupo?x.grupo.rejas:x.rejas)>0?r1(x.rejasHora):"-"}</td>
+                    <td style={TD}>{x.rejas>0?r2(x.basePorReja):"-"}</td>
+                  </tr>
+                );
+              })}
+              {K&&(K.indG>0||K.ind>0)&&(
+                <tr style={{borderTop:"1px solid rgba(255,255,255,.06)"}}>
+                  <td style={{padding:"7px 7px",fontWeight:900,color:"#7a9a6a"}}>
+                    Indirectos<span style={{fontSize:9,color:"#5a7a4a",fontWeight:700,marginLeft:6}}>todo el empaque</span></td>
+                  <td style={TD}>-</td>
+                  <td style={TD}>-</td>
+                  <td style={TD}>{r1(K.indG)}</td>
+                  <td style={TD}>{r1(K.indHx)||"-"}</td>
+                  <td style={Object.assign({},TD,{color:"#9ab08a"})}>{pesos(K.indCJor)}</td>
+                  <td style={Object.assign({},TD,{color:K.indCExt?"#fbbf24":"#4a6a3a"})}>{K.indCExt?pesos(K.indCExt):"-"}</td>
+                  <td style={Object.assign({},TD,{fontWeight:900,color:"#fbbf24"})}>{pesos(K.ind)}</td>
+                  <td style={Object.assign({},TD,{fontWeight:900,color:"#38bdf8"})}>{tot.base>0?pesos2(K.ind/tot.base):"-"}</td>
+                  <td style={TD}>-</td><td style={TD}>-</td><td style={TD}>-</td><td style={TD}>-</td>
+                </tr>)}
+              <tr style={{borderTop:"2px solid rgba(74,222,128,.3)",background:"rgba(74,222,128,.05)"}}>
+                <td style={{padding:"8px 7px",fontWeight:900,color:"#a8e063"}}>TOTAL</td>
+                <td style={Object.assign({},TD,{fontWeight:900})}>{mil(tot.rejas)}</td>
+                <td style={Object.assign({},TD,{fontWeight:900,color:"#4ade80"})}>{mil(tot.base)}</td>
+                <td style={Object.assign({},TD,{fontWeight:900})}>{tot.gente}</td>
+                <td style={Object.assign({},TD,{fontWeight:900})}>{r1(tot.hx)||"-"}</td>
+                <td style={Object.assign({},TD,{fontWeight:900,color:"#9ab08a"})}>{pesos(tot.cJor)}</td>
+                <td style={Object.assign({},TD,{fontWeight:900,color:"#fbbf24"})}>{pesos(tot.cExt)}</td>
+                <td style={Object.assign({},TD,{fontWeight:900,color:"#fbbf24"})}>{pesos(tot.global)}</td>
+                <td style={Object.assign({},TD,{fontWeight:900,color:"#38bdf8"})}>
+                  {tot.base>0?pesos2(tot.global/tot.base):"-"}</td>
+                <td style={TD}>-</td>
+                <td style={TD}>-</td>
+                <td style={TD}>-</td>
+                <td style={Object.assign({},TD,{fontWeight:900})}>{tot.rejas>0?r2(tot.base/tot.rejas):"-"}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style={{fontSize:10,color:"#5a7a4a",marginTop:7,lineHeight:1.6}}>
+          <b>Rejas llegadas</b>: lo que registro recibo de fruta ese dia para esa linea.{" "}
+          <b>Bultos empacados</b>: lo que registro produccion, convertido a la caja de la linea.
+          El 12X1 y el 8X2 del persa se le cargan a <b>Embolsado</b>, no al Persa, y van en cajas
+          de 20 LBS (una 12x1 cuenta como 0.62 y una 8x2 como 0.82).{" "}
+          <b>Personas</b>: la plantilla de la app de extras menos los de destajo (no cuentan en el jornal).
+          Plantillas compartidas: Persa con Slicer (menos {DJ.ps}) y Morron con Minibel (menos {DJ.ch}).
+          Si ese dia solo se empaco uno, se lleva a toda la gente; si hubo de los dos, mitad y mitad
+          {K?" (este dia: "+K.repPS+"; "+K.repChile+")":""}. Europeo menos {DJ.eu}. Embolsado menos {DJ.emb}. Las horas extras NO se reparten:
+          cada linea lleva las que se reportaron en su area.{" "}
+          <b>Gasto de linea</b>: jornal mas horas extras de esa linea. <b>Indirectos</b> (carton, embarques,
+          calidad...) van en su propio renglon: su gasto entre todos los bultos del dia. El TOTAL es todo el
+          empaque: toda la gente que gana por dia (lineas + indirectos); solo quedan fuera los de destajo.{" "}
+          <b>Horas de linea</b>: jornada mas las extras por persona. Persa-Slicer y Morron-Minibel son un
+          solo grupo que va alternando las dos lineas: sus <b>bultos por hora</b> son del GRUPO (lo que sacaron
+          las dos lineas entre las horas del grupo), por eso sale el mismo numero en las dos. El gasto, el costo
+          y las extras de cada linea son solo suyos.
+        </div>
+      </div>
+
+      {/* INDIRECTOS APARTE */}
+      {K&&(
+        <div style={CAJA}>
+          <div style={{fontSize:9,color:"#5a7a4a",fontWeight:800,letterSpacing:1.6,
+            textTransform:"uppercase",marginBottom:8}}>Costos indirectos &middot; {diaLargo(fecha)}</div>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:11}}>
+            <Tarjeta t="Gasto en indirectos" v={pesos(K.ind)} col="#7a9a6a" bc="rgba(122,154,106,.35)"
+              sub="no es de ninguna fruta"/>
+            <Tarjeta t="Bultos del dia" v={mil(tot.base)} col="#4ade80" sub="todo lo que se empaco"/>
+            <Tarjeta t="Indirecto por bulto" v={tot.base>0?pesos2(K.indBulto):"-"} col="#38bdf8"
+              bc="rgba(56,189,248,.3)" sub="el indirecto entre todos los bultos"/>
+            <Tarjeta t="Peso del indirecto" v={tot.global>0?r1(K.ind/tot.global*100)+"%":"-"}
+              col="#fbbf24" sub="de todo el gasto del dia"/>
+          </div>
+          {K.indDet.length===0
+            ? <div style={{fontSize:12,color:"#5a7a4a"}}>No hay gente capturada en areas indirectas.</div>
+            : <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",fontSize:12}}>
+                  <thead><tr>
+                    <th style={Object.assign({},TH,{textAlign:"left"})}>Area</th>
+                    <th style={TH}>Gente</th>
+                    <th style={TH}>Hrs extra</th>
+                    <th style={TH}>Jornal</th>
+                    <th style={TH}>Extras</th>
+                    <th style={Object.assign({},TH,{color:"#fbbf24"})}>Gasto</th>
+                    <th style={Object.assign({},TH,{color:"#38bdf8"})}>$/bulto</th>
+                  </tr></thead>
+                  <tbody>
+                    {K.indDet.map(function(a){
+                      return (
+                        <tr key={a.area} style={{borderTop:"1px solid rgba(255,255,255,.06)"}}>
+                          <td style={{padding:"7px 7px",fontWeight:900,color:"#c0d0a0"}}>{a.area}</td>
+                          <td style={TD}>{a.gente}</td>
+                          <td style={TD}>{a.hx||"-"}</td>
+                          <td style={Object.assign({},TD,{color:"#9ab08a"})}>{pesos(a.cJor)}</td>
+                          <td style={Object.assign({},TD,{color:a.cExt?"#fbbf24":"#4a6a3a"})}>
+                            {a.cExt?pesos(a.cExt):"-"}</td>
+                          <td style={Object.assign({},TD,{fontWeight:900,color:"#fbbf24"})}>{pesos(a.total)}</td>
+                          <td style={Object.assign({},TD,{color:"#38bdf8"})}>
+                            {tot.base>0?pesos2(a.total/tot.base):"-"}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{borderTop:"2px solid rgba(122,154,106,.4)",background:"rgba(122,154,106,.07)"}}>
+                      <td style={{padding:"8px 7px",fontWeight:900,color:"#a8e063"}}>TOTAL INDIRECTOS</td>
+                      <td style={Object.assign({},TD,{fontWeight:900})}>
+                        {K.indDet.reduce(function(s,a){return s+a.gente},0)}</td>
+                      <td style={Object.assign({},TD,{fontWeight:900})}>
+                        {r1(K.indDet.reduce(function(s,a){return s+a.hx},0))||"-"}</td>
+                      <td style={Object.assign({},TD,{fontWeight:900,color:"#9ab08a"})}>
+                        {pesos(K.indDet.reduce(function(s,a){return s+a.cJor},0))}</td>
+                      <td style={Object.assign({},TD,{fontWeight:900,color:"#fbbf24"})}>
+                        {pesos(K.indDet.reduce(function(s,a){return s+a.cExt},0))}</td>
+                      <td style={Object.assign({},TD,{fontWeight:900,color:"#fbbf24"})}>{pesos(K.ind)}</td>
+                      <td style={Object.assign({},TD,{fontWeight:900,color:"#38bdf8"})}>
+                        {tot.base>0?pesos2(K.indBulto):"-"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>}
+          <div style={{fontSize:10,color:"#5a7a4a",marginTop:7,lineHeight:1.6}}>
+            Carton, embarques, trazabilidad, calidad, mantenimiento, descargas y auxiliares.
+            Esta gente trabaja para todo el empaque, asi que su costo se mide contra
+            <b> todos los bultos del dia</b>, sin repartirse entre las lineas.
+          </div>
+        </div>
+      )}
+
+      {/* PRESENTACIONES QUE NO SE PUDIERON CONVERTIR */}
+      {K&&Object.keys(K.sinConv||{}).length>0&&(
+        <div style={{background:"rgba(251,191,36,.1)",border:"1px solid rgba(251,191,36,.45)",
+          borderRadius:10,padding:"10px 13px",marginBottom:12}}>
+          <div style={{fontSize:12.5,color:"#fbbf24",fontWeight:900,marginBottom:4}}>
+            Cajas que no se pudieron convertir a caja base
+          </div>
+          <div style={{fontSize:11,color:"#d0c090",marginBottom:5}}>
+            No entraron a los bultos ni a los KPIs. Falta el peso o el conteo de esa presentacion:
+          </div>
+          {Object.keys(K.sinConv).map(function(k,i){
+            return <div key={i} style={{fontSize:11.5,color:"#fde68a",fontWeight:800}}>
+              &middot; {k} — {mil(K.sinConv[k])} cajas</div>;
+          })}
+        </div>
+      )}
+
+      {/* TENDENCIA DIA CON DIA */}
+      <div style={CAJA}>
+        <div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",marginBottom:10}}>
+          <div style={{fontSize:9,color:"#5a7a4a",fontWeight:800,letterSpacing:1.6,
+            textTransform:"uppercase"}}>Comportamiento dia con dia</div>
+          <div style={{flex:1}}/>
+          {[7,14,30].map(function(n){
+            var on=(nDias===n);
+            return <button key={n} onClick={function(){setNDias(n)}}
+              style={{background:on?"rgba(74,222,128,.14)":"transparent",
+                border:"1px solid "+(on?"rgba(74,222,128,.45)":"rgba(255,255,255,.1)"),
+                borderRadius:6,color:on?"#4ade80":"#5a7a4a",fontSize:11,fontWeight:800,
+                padding:"4px 10px",cursor:"pointer"}}>{n} dias</button>;
+          })}
+        </div>
+        {serie.length===0&&<div style={{fontSize:12,color:"#5a7a4a",padding:"14px 0"}}>
+          No hay dias con produccion en ese rango.</div>}
+        {serie.length>0&&(function(){
+          var maxCB=0,maxBH=0;
+          serie.forEach(function(k){
+            var t2=0,b2=0,hh=0;
+            LINEAS.forEach(function(L){t2+=k.lineas[L].total;b2+=k.lineas[L].base;hh+=k.lineas[L].hh});
+            hh+=k.indHH||0;   // los indirectos tambien ganan por dia
+            t2+=k.ind;   // el costo por bulto del dia si lleva el indirecto, pero completo
+            k._cb=b2>0?t2/b2:0; k._b=b2; k._t=t2; k._hh=hh;
+            k._ib=b2>0?k.ind/b2:0;
+            k._bh=hh>0?b2/hh:0;
+            if(k._cb>maxCB)maxCB=k._cb;
+            if(k._bh>maxBH)maxBH=k._bh;
+          });
+          var maxB=Math.max.apply(null,serie.map(function(k){return k._b}));
+          function barra(v,max,col,txt){
+            var w=max>0?Math.max(2,v/max*100):0;
+            return (
+              <div style={{flex:1,display:"flex",alignItems:"center",gap:6,minWidth:120}}>
+                <div style={{flex:1,height:15,background:"rgba(0,0,0,.35)",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{width:w+"%",height:"100%",background:col}}/>
+                </div>
+                <span style={{fontSize:10.5,color:col,fontWeight:800,width:62,flex:"none",
+                  textAlign:"right",fontFamily:"ui-monospace,Menlo,monospace"}}>{txt}</span>
+              </div>
+            );
+          }
+          return (
+            <div>
+              <div style={{display:"flex",gap:10,marginBottom:6,paddingLeft:62}}>
+                <div style={{flex:1,fontSize:9,color:"#4ade80",fontWeight:800,letterSpacing:1}}>BULTOS</div>
+                <div style={{flex:1,fontSize:9,color:"#38bdf8",fontWeight:800,letterSpacing:1}}>COSTO POR BULTO</div>
+                <div style={{flex:1,fontSize:9,color:"#fbbf24",fontWeight:800,letterSpacing:1}}>BULTOS POR HOMBRE-HORA</div>
+              </div>
+              {serie.map(function(k){
+                return (
+                  <div key={k.f} style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+                    <span style={{fontSize:10.5,color:k.f===fecha?"#a8e063":"#7a9a6a",
+                      fontWeight:k.f===fecha?900:700,width:52,flex:"none",
+                      fontFamily:"ui-monospace,Menlo,monospace"}}>{diaCorto(k.f)}</span>
+                    {barra(k._b,maxB,"#4ade80",mil(k._b))}
+                    {barra(k._cb,maxCB,"#38bdf8",pesos2(k._cb))}
+                    {barra(k._bh,maxBH,"#fbbf24",r2(k._bh))}
+                  </div>
+                );
+              })}
+              {(function(){
+                var n=serie.length;
+                if(n<2)return null;
+                var a=serie[n-2],b=serie[n-1];
+                function flecha(v,mejorAbajo){
+                  if(Math.abs(v)<0.5)return <span style={{color:"#7a9a6a"}}>igual</span>;
+                  var bueno=mejorAbajo?(v<0):(v>0);
+                  return <span style={{color:bueno?"#4ade80":"#ef4444",fontWeight:900}}>
+                    {(v>0?"+":"")+r1(v)+"%"}</span>;
+                }
+                var dCB=a._cb>0?(b._cb-a._cb)/a._cb*100:0;
+                var dBH=a._bh>0?(b._bh-a._bh)/a._bh*100:0;
+                var dB=a._b>0?(b._b-a._b)/a._b*100:0;
+                return (
+                  <div style={{marginTop:10,paddingTop:9,borderTop:"1px solid rgba(255,255,255,.07)",
+                    fontSize:11.5,color:"#9ab08a",display:"flex",gap:16,flexWrap:"wrap"}}>
+                    <span>Contra el dia anterior:</span>
+                    <span>bultos {flecha(dB,false)}</span>
+                    <span>costo por bulto {flecha(dCB,true)}</span>
+                    <span>bultos por hombre-hora {flecha(dBH,false)}</span>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })()}
+      </div>
+
+      <div style={{textAlign:"right",fontSize:9,color:"#2a3a2a",marginTop:6}}>{BUILD}</div>
+    </div>
+  );
+}
+ReactDOM.render(<App/>,document.getElementById("root"));
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ table{border-collapse:collapse}
 </style>
 </head><body><div id="root"></div>
 <script>
-var BUILD="v2026-09-21-KPI16";
+var BUILD="v2026-09-22-KPI18";
 // Vigia de version: GitHub Pages sirve el archivo viejo desde cache y el
 // meta de no-cache no sirve. Se relee el propio archivo y si el BUILD
 // cambio, se recarga una vez.
@@ -127,10 +127,24 @@ function cajasBase(pres,linea){
   if(esBushel(pres))return (linea==="Morron"?11.57:9.07)/base;
   var kk=KGN[p];
   if(kk!==undefined)return kk/base;
+  // Las presentaciones traen apellidos: "20 LBS MDL", "12X1 LBS STO",
+  // "20 LBS XFANCY"... El peso lo da el envase, no el apellido: se busca por
+  // como empieza (12X1, 8X2, 20 LB) y se ignora lo demas.
+  var m2=p.match(/^(\d+)x(\d+)/);
+  if(m2&&KGN[m2[1]+"x"+m2[2]]!==undefined)return KGN[m2[1]+"x"+m2[2]]/base;
+  var m3=p.match(/^(\d+)\s*lb/);
+  if(m3&&KGN[m3[1]+"lb"]!==undefined)return KGN[m3[1]+"lb"]/base;
   // las de conteo que no tienen kilo propio se dejan fuera y se avisa
   return 0;
 }
-var BASE_NOM={Slicer:"36 CT",Europeo:"12 CT",Persa:"20 LBS",Morron:"11 LB",Minibel:"12X1",Embolsado:"-"};
+var BASE_NOM={Slicer:"36 CT",Europeo:"12 CT",Persa:"20 LBS",Morron:"11 LB",Minibel:"12X1",Embolsado:"20 LBS"};
+// Lo que sale EMBOLSADO no es de la linea: son las bolsas. Todo el 12X1 y el
+// 8X2 del persa se le carga a Embolsado, no al Persa.
+function esEmbolsado(pres,linea){
+  if(linea!=="Persa")return false;
+  var p=nk(pres);
+  return p.indexOf("12x1")>=0||p.indexOf("8x2")>=0;
+}
 // Embolsado es un reproceso con su propia plantilla: se le carga su gente y
 // sus extras, pero no empaca fruta propia (sus bultos ya van en cada cultivo).
 var LINEAS=["Persa","Slicer","Europeo","Morron","Minibel","Embolsado"];
@@ -269,12 +283,13 @@ function App(){
         var fac=cajasBase(r.presentacion,L);
         if(fac<=0){var kk=String(r.presentacion||"(sin presentacion)");
           sinConv[L+" | "+kk]=(sinConv[L+" | "+kk]||0)+ni(r.cajas);return;}
-        out[L]+=ni(r.cajas)*fac;
+        var dest=esEmbolsado(r.presentacion,L)?"Embolsado":L;
+        out[dest]+=ni(r.cajas)*fac;
         var tt=tsTarima(r,f);
-        if(tt){if(!t0[L]||tt<t0[L])t0[L]=tt;if(!t1[L]||tt>t1[L])t1[L]=tt;}
+        if(tt){if(!t0[dest]||tt<t0[dest])t0[dest]=tt;if(!t1[dest]||tt>t1[dest])t1[dest]=tt;}
       });
-      out[L]=Math.round(out[L]);
     });
+    LINEAS.forEach(function(L){out[L]=Math.round(out[L])});
     return {base:out,sinConv:sinConv,t0:t0,t1:t1};
   }
 
@@ -689,7 +704,7 @@ function App(){
                 return (
                   <tr key={L} style={{borderTop:"1px solid rgba(255,255,255,.06)"}}>
                     <td style={{padding:"7px 7px",fontWeight:900,color:COLOR[L]}}>
-                      {L}<span style={{fontSize:9,color:"#5a7a4a",fontWeight:700,marginLeft:6}}>{L==="Embolsado"?"reproceso":"bulto = "+BASE_NOM[L]}</span>
+                      {L}<span style={{fontSize:9,color:"#5a7a4a",fontWeight:700,marginLeft:6}}>{"bulto = "+BASE_NOM[L]}</span>
                     </td>
                     <td style={TD}>{mil(x.rejas)}</td>
                     <td style={Object.assign({},TD,{fontWeight:900,color:"#4ade80"})}>{mil(x.base)}</td>
@@ -744,8 +759,9 @@ function App(){
         </div>
         <div style={{fontSize:10,color:"#5a7a4a",marginTop:7,lineHeight:1.6}}>
           <b>Rejas llegadas</b>: lo que registro recibo de fruta ese dia para esa linea.{" "}
-          <b>Bultos empacados</b>: lo que registro produccion, convertido a la caja de la linea
-          (Persa en cajas de 20 LBS: una 12x1 cuenta como 0.62 y una 8x2 como 0.82).{" "}
+          <b>Bultos empacados</b>: lo que registro produccion, convertido a la caja de la linea.
+          El 12X1 y el 8X2 del persa se le cargan a <b>Embolsado</b>, no al Persa, y van en cajas
+          de 20 LBS (una 12x1 cuenta como 0.62 y una 8x2 como 0.82).{" "}
           <b>Personas</b>: la plantilla de la app de extras menos los de destajo (no cuentan en el jornal).
           Plantillas compartidas: Persa con Slicer (menos {DJ.ps}) y Morron con Minibel (menos {DJ.ch}).
           Si ese dia solo se empaco uno, se lleva a toda la gente; si hubo de los dos, mitad y mitad

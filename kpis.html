@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPIs | Parras Valley</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+/* ---------------------------------------------------------------------------
+   KPI7 - 14/10/2026. Lo pidio Miguel: "mas llamativos, con mas color, de esos
+   verdes, amarillos, rojos intensos... que esten mas chicos y que todo quepa
+   en una sola columna... que pueda filtrar por cultivo y por fecha... que este
+   profesional en 3D".
+   - UNA SOLA COLUMNA: el ancho se queda en 820px y todo se apila.
+   - MAS CHICOS: los recuadros bajaron de 118px a 92px y la letra de 19 a 16.
+   - SEMAFORO: cada numero se pinta contra el dia anterior. Verde = mejor,
+     ambar = igual, rojo = peor. Nunca es el color solo: siempre lleva flecha
+     y el porcentaje, para que se entienda sin depender del color.
+   - El color del CULTIVO es otra cosa (identidad) y no se mezcla con el
+     semaforo. Los cinco se validaron contra el fondo oscuro.
+   - 3D: relieve con luz arriba y sombra abajo, nada de imagenes.
+--------------------------------------------------------------------------- */
+ :root{
+   --bg:#070c10; --sup:#0c141b;
+   --card:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+   --bd:rgba(255,255,255,.10);
+   --tx:#e9f0f5; --dim:#6a8299; --az:#3987e5;
+   /* semaforo fijo: nunca se usa para identificar un cultivo */
+   --ok:#0ca30c; --me:#fab219; --mal:#d03b3b;
+   --rel:0 1px 0 rgba(255,255,255,.11) inset, 0 -1px 0 rgba(0,0,0,.55) inset,
+         0 8px 18px -8px rgba(0,0,0,.95);
+   --relf:0 1px 0 rgba(255,255,255,.09) inset, 0 -2px 0 rgba(0,0,0,.5) inset,
+          0 4px 10px -5px rgba(0,0,0,.9);
+ }
+ *{box-sizing:border-box}
+ body{background:
+   radial-gradient(1100px 520px at 50% -170px,rgba(57,135,229,.11),transparent 70%),
+   var(--bg);
+   color:var(--tx);margin:0;padding:0;
+   font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+   -webkit-font-smoothing:antialiased}
+ .wrap{max-width:820px;margin:0 auto;padding:12px 12px 60px}
+
+ .top{display:flex;align-items:baseline;gap:9px;margin-bottom:11px}
+ .logo{font-size:21px;font-weight:900;letter-spacing:3;
+   background:linear-gradient(180deg,#8fc6ff,#3987e5);
+   -webkit-background-clip:text;background-clip:text;color:transparent;
+   text-shadow:0 2px 10px rgba(57,135,229,.35)}
+ .ver{font-size:10px;color:var(--dim);font-weight:800;letter-spacing:.6}
+
+ .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;
+   padding:12px 13px;margin-bottom:10px;box-shadow:var(--rel)}
+ .et{font-size:9px;color:var(--dim);font-weight:900;letter-spacing:1.1}
+ .h2{font-size:14px;font-weight:900;letter-spacing:.3}
+
+ input,select{background:rgba(0,0,0,.5);border:1px solid rgba(57,135,229,.42);
+   border-radius:9px;padding:7px 9px;color:#9fcbff;font-family:inherit;
+   font-size:15px;font-weight:800;outline:none;box-shadow:var(--relf)}
+ button{font-family:inherit;cursor:pointer;border-radius:9px;font-weight:800;
+   font-size:12px;padding:7px 11px;border:1px solid var(--bd);
+   background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.01));
+   color:var(--dim);box-shadow:var(--relf);transition:transform .07s}
+ button:active{transform:translateY(1px)}
+ button.on{color:#fff;border-color:rgba(255,255,255,.22)}
+ button.p{border-color:rgba(12,163,12,.55);
+   background:linear-gradient(180deg,rgba(12,163,12,.34),rgba(12,163,12,.14));color:#8ff08f}
+
+ .chips{display:flex;gap:5px;flex-wrap:wrap}
+ .chip{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;
+   border-radius:999px;font-size:12px;font-weight:900;cursor:pointer;
+   border:1px solid var(--bd);color:var(--dim);
+   background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.01));
+   box-shadow:var(--relf)}
+ .chip i{width:9px;height:9px;border-radius:3px;display:inline-block;
+   box-shadow:0 1px 0 rgba(255,255,255,.35) inset,0 2px 5px -1px rgba(0,0,0,.9)}
+ .chip.on{color:#fff;border-color:rgba(255,255,255,.3)}
+
+ /* ---- los recuadritos chicos ---- */
+ .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));
+   gap:7px;margin-top:9px}
+ .b{position:relative;border-radius:10px;padding:7px 8px 8px;
+   border:1px solid var(--bd);overflow:hidden;
+   background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(0,0,0,.26));
+   box-shadow:var(--relf)}
+ .b .led{position:absolute;left:0;top:0;right:0;height:3px}
+ .b .k{font-size:8.5px;color:var(--dim);font-weight:900;letter-spacing:.7;
+   margin-top:3px;line-height:1.25;min-height:21px}
+ .b .v{font-size:16px;font-weight:900;margin-top:1px;line-height:1.15;
+   font-variant-numeric:tabular-nums}
+ .cmp{font-size:10px;font-weight:900;margin-top:1px;letter-spacing:.2}
+ .b.ok{background:linear-gradient(180deg,rgba(12,163,12,.22),rgba(12,163,12,.05))}
+ .b.me{background:linear-gradient(180deg,rgba(250,178,25,.20),rgba(250,178,25,.04))}
+ .b.mal{background:linear-gradient(180deg,rgba(208,59,59,.22),rgba(208,59,59,.05))}
+ .up{color:#36c436}.dn{color:#ef6a6a}.eq{color:var(--dim)}
+
+ .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;
+   border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.5;color:#fff;
+   box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 4px 10px -4px rgba(0,0,0,.95)}
+ .big{font-size:25px;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+
+ .avisoR{background:linear-gradient(180deg,rgba(208,59,59,.2),rgba(208,59,59,.05));
+   border:1px solid rgba(208,59,59,.42);color:#ffb3b3;border-radius:11px;
+   padding:9px 12px;margin-bottom:9px;font-weight:700;font-size:13px;box-shadow:var(--relf)}
+ .avisoV{background:linear-gradient(180deg,rgba(12,163,12,.2),rgba(12,163,12,.05));
+   border:1px solid rgba(12,163,12,.45);color:#9af09a;border-radius:11px;
+   padding:9px 12px;margin-bottom:9px;font-weight:800;font-size:13px;box-shadow:var(--relf)}
+ .nota{font-size:13px;line-height:1.5;padding:5px 0;border-bottom:1px solid var(--bd)}
+
+ table{width:100%;border-collapse:collapse}
+ th{font-size:8.5px;color:var(--dim);font-weight:900;letter-spacing:.7;padding:6px 4px;
+    text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}
+ th:first-child,td:first-child{text-align:left}
+ td{padding:7px 4px;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums;
+    border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
+ .vacio{text-align:center;color:#3d4e5c;padding:34px 10px;font-size:15px;font-weight:800}
+
+ /* ---- la grafica de barras en relieve ---- */
+ .gr{position:relative;margin-top:10px}
+ .tip{position:absolute;pointer-events:none;z-index:5;transform:translate(-50%,-116%);
+   background:rgba(4,9,13,.97);border:1px solid var(--bd);border-radius:9px;
+   padding:6px 9px;font-size:12px;font-weight:800;white-space:nowrap;
+   box-shadow:0 10px 22px -8px #000}
+ .lg{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px;font-size:11px;font-weight:800}
+ .lg span{display:inline-flex;align-items:center;gap:5px;color:var(--dim)}
+ .lg i{width:10px;height:10px;border-radius:3px;display:inline-block;
+   box-shadow:0 1px 0 rgba(255,255,255,.35) inset}
+</style>
+</head>
+<body>
+<div id="r"></div>
+<script type="text/babel">
+var BUILD="v2026-10-14-KPI7";
+var FB="https://parrasvalley-default-rtdb.firebaseio.com";
+var NODO="kpi-dias-v1";               /* el historial propio de KPIs, arranca vacio */
+var LINEAS=["Persa","Slicer","Europeo","Morron","Minibel"];
+/* Color de IDENTIDAD de cada cultivo. No es semaforo: el semaforo (verde /
+   ambar / rojo) dice si el numero mejoro o empeoro, y nunca se usa para
+   distinguir un cultivo de otro. Estos cinco se escogieron y se midieron
+   contra el fondo oscuro: todos pasan contraste y se distinguen entre si
+   tambien para quien ve mal los colores. */
+var COLOR={Persa:"#199e70",Slicer:"#3987e5",Europeo:"#c98500",
+           Morron:"#9085e9",Minibel:"#e66767"};
+function claro(h){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
+  function m(x){return Math.min(255,Math.round(x+(255-x)*0.34))}
+  return "rgb("+m(r)+","+m(g)+","+m(b)+")"}
+function oscuro(h){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
+  return "rgb("+Math.round(r*.56)+","+Math.round(g*.56)+","+Math.round(b*.56)+")"}
+/* Persa, Morron y Minibel se miden en KILOS; Europeo y Slicer en PIEZAS.
+   Control de empaque ya guarda lo llegado y lo empacado en la unidad del cultivo. */
+var UNID={Persa:"kg",Slicer:"pz",Europeo:"pz",Morron:"kg",Minibel:"kg"};
+
+var uS=React.useState,uE=React.useEffect,uM=React.useMemo;
+function fget(k){return fetch(FB+"/"+k+".json?t="+Date.now())
+  .then(function(r){return r.json()}).catch(function(){return null})}
+function fput(k,v){return fetch(FB+"/"+k+".json",{method:"PUT",
+  headers:{"Content-Type":"application/json"},body:JSON.stringify(v)})
+  .then(function(r){return !!(r&&r.ok)}).catch(function(){return false})}
+function n0(v){var x=parseFloat(v);return isNaN(x)?0:x}
+function r1(n){return Math.round(n*10)/10}
+function r2(n){return Math.round(n*100)/100}
+function miles(n){return n0(n).toLocaleString("es-MX",{maximumFractionDigits:0})}
+function dec(n,d){return n0(n).toLocaleString("es-MX",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function pesos(n){return "$"+dec(n,2)}
+function dk(f){return String(f||"").replace(/-/g,"")}
+function hoy(){var d=new Date();return d.toISOString().slice(0,10)}
+function mueveDia(f,n){var d=new Date(f+"T12:00:00");d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10)}
+var MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+function fLargo(f){if(!f)return "";var p=f.split("-");
+  return parseInt(p[2],10)+" "+MES[parseInt(p[1],10)-1]+" "+p[0]}
+
+
+/* ---------- LAS HORAS DE TRABAJO DE LA LINEA, DEL HORARIO REAL ----------
+   [stated] Miguel, 14/10/2026: "Lo que importa es cuanto trabajo la LINEA, no
+   horas hombre. Si la linea trabajo cinco horas con diez hombres traes 50 horas
+   hombre, pero realmente fueron cinco horas de trabajo."
+   Se lee el horario de verdad, nomina-dias-v1/{fecha}.lin, y se SUMAN las horas
+   que cada cuadrilla le metio a ese cultivo.
+   [stated] 14/10: cuando DOS cuadrillas trabajan el mismo cultivo al mismo tiempo,
+   las horas SE SUMAN, no se juntan: "eran dos lineas, linea Persa/Slicer trabajando
+   para el Slicer y linea Euro trabajando para el Slicer. Si tu sumas eso te va a dar
+   10.5". Se intento quitar el traslape y daba 8, y el no lo reconocia como suyo.
+   Las horas de cada cuadrilla siempre cuadran con su jornada.
+   Comida y Cena no son trabajo y no cuentan. Los paros SI cuentan como tiempo de
+   la linea (la linea estaba ocupada en esa fruta) y ademas se reportan aparte,
+   porque son justo lo que explica un costo alto. */
+function aMin(t){var m=/^(\d{1,2}):(\d{2})$/.exec(String(t||""));
+  return m?parseInt(m[1],10)*60+parseInt(m[2],10):null}
+function esComida(a){var x=String(a||"").toLowerCase();
+  return x.indexOf("comida")>=0||x.indexOf("cena")>=0}
+function esParo(a){return String(a||"").toLowerCase().indexOf("paro")>=0}
+function suma(iv){var t=0;iv.forEach(function(x){t+=x[1]-x[0]});return t}
+function horasDeLinea(dias){
+  var out={};                       /* area -> {min, paro} */
+  if(!dias||!dias.lin)return null;
+  Object.keys(dias.lin).forEach(function(k){
+    var rr=dias.lin[k]; if(!rr||!rr.length)return;
+    /* la primera area real del dia, para los paros que caen antes de empezar */
+    var prim="";
+    for(var j=0;j<rr.length;j++){var a0=rr[j].ar;
+      if(a0&&!esComida(a0)&&!esParo(a0)){prim=a0;break}}
+    var ult="";
+    for(var i=0;i<rr.length;i++){
+      var r=rr[i]||{}, de=aMin(r.de), a=aMin(r.a), ar=r.ar;
+      if(de===null||a===null)continue;
+      if(a<=de)a+=1440;                     /* paso de la medianoche */
+      if(esComida(ar))continue;             /* no es trabajo */
+      var area=ar;
+      if(esParo(ar))area=ult||prim;         /* el paro se carga donde venia */
+      if(!area)continue;
+      if(!out[area])out[area]={iv:[],ivP:[]};
+      out[area].iv.push([de,a]);
+      if(esParo(ar))out[area].ivP.push([de,a,String(ar)]);
+      if(!esParo(ar))ult=ar;
+    }
+  });
+  var res={};
+  Object.keys(out).forEach(function(A){
+    /* El desglose del paro va MINUTO POR MINUTO: si dos cuadrillas estan paradas
+       a la misma hora en el mismo cultivo, ese minuto se cuenta UNA vez y se le
+       queda al motivo que llego primero. Asi los motivos siempre suman el total
+       de horas paradas, ni mas ni menos. */
+    /* El motivo se suma igual que las horas: si dos cuadrillas estan paradas
+       a la misma hora en el mismo cultivo, son dos lineas paradas y cuentan las
+       dos. Asi los motivos suman exacto las horas paradas de ese cultivo. */
+    var mot={};
+    out[A].ivP.forEach(function(iv){
+      mot[iv[2]]=(mot[iv[2]]||0)+(iv[1]-iv[0]);
+    });
+    res[A]={min:suma(out[A].iv),paro:suma(out[A].ivP),mot:mot};
+  });
+  return res;
+}
+
+var MOT={"Paro fruta":"falta de fruta","Paro mecanico":"falla mecánica",
+          "Paro luz":"falta de luz","Paro otro":"otro"};
+function nomMot(k){return MOT[k]||String(k).replace(/^Paro\s*/i,"")}
+function listaParo(mot){
+  var ks=Object.keys(mot||{}).sort(function(a,b){return mot[b]-mot[a]});
+  if(!ks.length)return "";
+  return ks.map(function(k){return dec(mot[k]/60,1)+" h "+nomMot(k)}).join(" · ");
+}
+function calVal(c,u){
+  if(!c)return 0;
+  if(u==="pz"){
+    if(n0(c.pz)>0)return n0(c.pz);          /* Europeo: ya viene en piezas */
+    if(n0(c.cj)>0)return n0(c.cj)*36;       /* Slicer: cajas de 36 CT -> piezas */
+    return 0;
+  }
+  return n0(c.kg);
+}
+
+/* ---------- arma el dia con lo que ya guardaron las otras apps ---------- */
+function armaDia(rend,gast,nom,hlin){
+  var filas=[],T={rejas:0,bultos:0,gasto:0,min:0,mx:0,np:0};
+  LINEAS.forEach(function(L){
+    var R=rend[L]||null, G=(gast&&gast[L])||null, N=nom[L]||null;
+    var rejas=0,rec=0,emp=0,ca=0,cb=0,cc=0;
+    if(R){Object.keys(R).forEach(function(k){
+      var r=R[k]||{};
+      rejas+=n0(r.rejas); rec+=n0(r.kgRec); emp+=n0(r.kgEmp);
+      var d=r.det||{};
+      /* OJO CON LAS UNIDADES DEL DETALLE POR CALIDAD.
+         Persa, Morron y Minibel: lo llegado y el detalle van los dos en KILOS.
+         Europeo: los dos en PIEZAS (el detalle trae pz).
+         Slicer: lo llegado va en PIEZAS pero el detalle trae los KILOS y las
+         CAJAS de 36 CT. Sumar esos kilos contra piezas da porcentajes absurdos,
+         asi que ahi se usan las cajas por 36, que es justo lo empacado. */
+      ca+=calVal(d.a,UNID[L]); cb+=calVal(d.b,UNID[L]); cc+=calVal(d.c,UNID[L]);
+    })}
+    var min=N?n0(N.min):0, mx=N?n0(N.mx):0, np=N?n0(N.np):0;
+    /* DOS HORAS DISTINTAS, Y NO SE CRUZAN (Miguel, 14/10/2026).
+       HORAS HOMBRE = la suma de lo que trabajaron todas las personas en esa
+       linea. Sirve para el COSTO, porque eso es lo que se paga.
+       HORAS DE LINEA = las horas de RELOJ que la linea estuvo en ese cultivo,
+       o sea horas hombre entre la gente. Si 24 personas metieron 132 horas
+       hombre, la linea corrio 5.5 horas. ESA es con la que se mide el ritmo:
+       los bultos y las rejas por hora van sobre las horas de linea, no sobre
+       las horas hombre. Con horas hombre salian 26 bultos/hora y no cuadraba
+       con lo que el ve en el empaque. */
+    var hh=min/60, hx=mx/60;
+    var HL=hlin&&hlin[L]?hlin[L]:null;
+    var h=HL?HL.min/60:(np>0?(min/np)/60:0);   /* del horario real; si no hay, promedio */
+    var hpar=HL?HL.paro/60:0;
+    var mot=HL?(HL.mot||{}):{};
+    /* [stated] 14/10: el ritmo se saca con las horas EFECTIVAS, las que de verdad
+       se estuvo trabajando. "Me vas a poner que fueron diez pero seis paradas y
+       cuatro trabajando, y me divides entre cuatro lo que realmente trabajo".
+       Las horas totales y las paradas se siguen reportando, porque son las que se
+       pagan y las que explican el costo. */
+    var hef=h-hpar; if(hef<0)hef=0;
+    var exacta=!!HL;
+    var bultos=G?n0(G.bultos):0, gasto=G?n0(G.totalCosto):0;
+    var merma=rec-emp;
+    if(!R&&!G&&!N)return;                      /* esa linea no corrio ese dia */
+    filas.push({L:L,u:UNID[L],rejas:rejas,rec:rec,emp:emp,
+      pa:rec>0?100*ca/rec:0, pb:rec>0?100*cb/rec:0, pc:rec>0?100*cc/rec:0,
+      pm:rec>0?100*merma/rec:0, merma:merma,
+      h:h,hef:hef,hh:hh,hx:hx,hpar:hpar,mot:mot,exacta:exacta,np:np,bultos:bultos,gasto:gasto,
+      rejasH:hef>0?rejas/hef:0, bultosH:hef>0?bultos/hef:0, cpb:bultos>0?gasto/bultos:0,
+      falta:{rend:!R,gast:!G,nom:!N}});
+    T.rejas+=rejas; T.bultos+=bultos; T.gasto+=gasto; T.min+=min; T.mx+=mx; T.np+=np;
+  });
+  /* En el TOTAL del dia no se suman las horas de linea: las lineas corren al
+     mismo tiempo y sumarlas no significa nada. El total va en horas hombre. */
+  T.hh=T.min/60; T.hx=T.mx/60;
+  T.hpar=0; T.hef=0; T.mot={};
+  filas.forEach(function(x){T.hpar+=x.hpar; T.hef+=x.hef;
+    Object.keys(x.mot||{}).forEach(function(k){T.mot[k]=(T.mot[k]||0)+x.mot[k]})});
+  T.cpb=T.bultos>0?T.gasto/T.bultos:0;
+  return {filas:filas,tot:T};
+}
+
+/* ---------- comparacion contra el dia guardado anterior ---------- */
+function cmp(hoyV,antV,menosEsMejor){
+  if(ant0(antV)===0||hoyV===undefined||hoyV===null)return null;
+  var d=hoyV-antV, p=100*d/Math.abs(antV);
+  if(Math.abs(p)<0.5)return null;     /* si no se movio, no se escribe nada */
+  var bueno=menosEsMejor?(d<0):(d>0);
+  return {t:(d>0?"▲ ":"▼ ")+dec(Math.abs(p),1)+"%", c:bueno?"up":"dn", p:p};
+}
+function ant0(v){return (v===undefined||v===null||isNaN(v))?0:v}
+
+function Cmp(props){
+  var c=props.c;
+  if(!c)return null;
+  return <div className={"cmp "+c.c}>{c.t}</div>;
+}
+
+function fLbl(f){if(!f)return "";var p=String(f).split("-");
+  return parseInt(p[2],10)+" "+MES[parseInt(p[1],10)-1]}
+
+/* =====================  SEMAFORO  =====================
+   [stated] Miguel, 14/10/2026: "mas llamativos, con mas color, de esos verdes,
+   amarillos, rojos intensos".
+   La regla es una sola y se puede explicar en un renglon: cada numero se compara
+   contra EL MISMO numero del dia guardado anterior.
+     verde  = mejoro mas de 3%
+     ambar  = se movio menos de 3% (practicamente igual)
+     rojo   = empeoro mas de 3%
+   Sin dia anterior no hay color: no se inventa una meta que Miguel no ha dado.
+   El color NUNCA va solo: siempre lo acompana la flecha y el porcentaje. */
+function sem(hoyV,antV,menosEsMejor){
+  if(antV===undefined||antV===null||isNaN(antV)||antV===0)return "";
+  if(hoyV===undefined||hoyV===null||isNaN(hoyV))return "";
+  var p=100*(hoyV-antV)/Math.abs(antV);
+  if(Math.abs(p)<3)return "me";
+  var bueno=menosEsMejor?(p<0):(p>0);
+  return bueno?"ok":"mal";
+}
+var COLSEM={ok:"#0ca30c",me:"#fab219",mal:"#d03b3b"};
+
+/* un recuadro chico. k = nombre, v = valor, c = comparacion, s = semaforo */
+function B(props){
+  var s=props.s||"";
+  return (<div className={"b "+s}>
+    {s?<div className="led" style={{background:
+      "linear-gradient(90deg,"+COLSEM[s]+","+COLSEM[s]+"88)"}}/>:null}
+    <div className="k">{props.k}</div>
+    <div className="v" style={{color:props.col||(s?COLSEM[s]:"var(--tx)")}}>{props.v}</div>
+    <Cmp c={props.c}/>
+  </div>);
+}
+
+function Leyenda(props){
+  return (<div className="lg" style={{marginTop:2}}>
+    <span><i style={{background:"linear-gradient(180deg,#2ad32a,#0ca30c)"}}/>mejor que el día anterior</span>
+    <span><i style={{background:"linear-gradient(180deg,#ffd166,#fab219)"}}/>casi igual (menos de 3%)</span>
+    <span><i style={{background:"linear-gradient(180deg,#ef6a6a,#d03b3b)"}}/>peor que el día anterior</span>
+    {props.neutro&&<span><i style={{background:"linear-gradient(180deg,#8fc6ff,#3987e5)"}}/>
+      sin día anterior con qué comparar</span>}
+  </div>);
+}
+
+/* =====================  GRAFICA DE BARRAS EN RELIEVE  =====================
+   Una sola medida a la vez, un solo eje. Cada barra lleva su nombre abajo, asi
+   que el color nunca es lo unico que identifica. Al pasar el dedo o el raton
+   sale el dato exacto. */
+function Barras(props){
+  var datos=props.datos||[];          /* [{k:etiqueta, v:valor, col:color, sub:texto}] */
+  var fmt=props.fmt||function(v){return dec(v,1)};
+  var alto=props.alto||168;
+  var sT=uS(-1),hov=sT[0],setHov=sT[1];
+  if(!datos.length)return <div className="vacio">Nada que graficar todavía.</div>;
+  var vals=datos.map(function(d){return n0(d.v)});
+  var max=Math.max.apply(null,vals), min=Math.min.apply(null,vals);
+  if(max<=0&&min>=0)max=1;
+  var piso=Math.min(0,min), techo=max>piso?max:piso+1;
+  var W=100, n=datos.length;
+  var ancho=100/n, hueco=n>14?1.2:(n>8?2.4:4);
+  function hBarra(v){return Math.max(2,(n0(v)-piso)/(techo-piso)*100)}
+  return (
+  <div className="gr">
+    <div style={{display:"flex",alignItems:"flex-end",height:alto,gap:0,
+      borderBottom:"1px solid rgba(255,255,255,.14)",paddingBottom:0}}>
+      {datos.map(function(d,i){
+        var h=hBarra(d.v), c=d.col||"#3987e5";
+        return (
+        <div key={i} style={{width:ancho+"%",display:"flex",flexDirection:"column",
+            justifyContent:"flex-end",alignItems:"center",height:"100%",
+            padding:"0 "+hueco/2+"%",cursor:"default"}}
+          onMouseEnter={function(){setHov(i)}} onMouseLeave={function(){setHov(-1)}}
+          onTouchStart={function(){setHov(i)}}>
+          {n<=10&&<div style={{fontSize:10.5,fontWeight:900,color:claro(c),marginBottom:3,
+            whiteSpace:"nowrap"}}>{fmt(d.v)}</div>}
+          <div style={{width:"100%",maxWidth:n<=4?130:9999,height:h+"%",borderRadius:"5px 5px 2px 2px",
+            background:"linear-gradient(180deg,"+claro(c)+" 0%,"+c+" 38%,"+oscuro(c)+" 100%)",
+            boxShadow:(hov===i?"0 0 0 2px rgba(255,255,255,.5),":"")+
+              "0 1px 0 rgba(255,255,255,.45) inset, -2px 0 0 rgba(0,0,0,.33) inset,"+
+              " 0 6px 14px -5px rgba(0,0,0,.95)"}}/>
+        </div>)})}
+    </div>
+    <div style={{display:"flex",marginTop:5}}>
+      {datos.map(function(d,i){
+        var salta=n>12&&(i%Math.ceil(n/8)!==0)&&i!==n-1;
+        return <div key={i} style={{width:ancho+"%",textAlign:"center",fontSize:9.5,
+          fontWeight:800,color:hov===i?"var(--tx)":"var(--dim)",overflow:"hidden",
+          whiteSpace:"nowrap"}}>{salta?"":d.k}</div>})}
+    </div>
+    {hov>=0&&datos[hov]&&
+      <div className="tip" style={{left:((hov+0.5)*ancho)+"%",top:0}}>
+        <span style={{color:claro(datos[hov].col||"#3987e5")}}>{datos[hov].k}</span>
+        <span style={{color:"var(--tx)",marginLeft:7}}>{fmt(datos[hov].v)}</span>
+        {datos[hov].sub&&<div style={{color:"var(--dim)",fontWeight:700,fontSize:11,
+          marginTop:2}}>{datos[hov].sub}</div>}
+      </div>}
+  </div>);
+}
+
+/* las medidas que se pueden graficar. menos=true -> menos es mejor */
+var MEDIDAS=[
+  {k:"cpb",   n:"$ / BULTO",      menos:true,  fmt:function(v){return pesos(v)}},
+  {k:"bultos",n:"BULTOS",         menos:false, fmt:function(v){return miles(v)}},
+  {k:"bultosH",n:"BULTOS / HORA", menos:false, fmt:function(v){return dec(v,0)}},
+  {k:"rejas", n:"REJAS",          menos:false, fmt:function(v){return miles(v)}},
+  {k:"rejasH",n:"REJAS / HORA",   menos:false, fmt:function(v){return dec(v,0)}},
+  {k:"pa",    n:"% PRIMERA",      menos:false, fmt:function(v){return dec(v,1)+"%"}},
+  {k:"pm",    n:"% MERMA",        menos:true,  fmt:function(v){return dec(v,1)+"%"}},
+  {k:"hpar",  n:"HORAS PARADAS",  menos:true,  fmt:function(v){return dec(v,1)+" h"}},
+  {k:"gasto", n:"GASTO",          menos:true,  fmt:function(v){return pesos(v)}}
+];
+function medDe(k){for(var i=0;i<MEDIDAS.length;i++)if(MEDIDAS[i].k===k)return MEDIDAS[i];
+  return MEDIDAS[0]}
+
+function App(){
+  var s1=uS(hoy()),f=s1[0],setF=s1[1];
+  var sC=uS(""),cul=sC[0],setCul=sC[1];          /* "" = todos los cultivos */
+  var sM=uS("dia"),modo=sM[0],setModo=sM[1];     /* "dia" | "todas" las fechas */
+  var sD=uS("cpb"),med=sD[0],setMed=sD[1];       /* que medida se grafica */
+  var s3=uS(null),rend=s3[0],setRend=s3[1];
+  var s4=uS(null),gast=s4[0],setGast=s4[1];
+  var s5=uS(null),nom=s5[0],setNom=s5[1];
+  var sH=uS(null),hlin=sH[0],setHlin=sH[1];
+  var s6=uS({}),hist=s6[0],setHist=s6[1];
+  var s7=uS(false),cargando=s7[0],setCargando=s7[1];
+  var s8=uS(""),msg=s8[0],setMsg=s8[1];
+  var sB=uS(""),avBul=sB[0],setAvBul=sB[1];
+
+  uE(function(){ fget(NODO).then(function(d){ setHist((d&&typeof d==="object")?d:{}) }); },[]);
+
+  /* EL BOTON VERDE DEL ARCHIVO DE BULTOS SIGUE ENTRANDO POR AQUI.
+     El link del archivo de trazabilidad apunta a kpis.html?x=<epoch>#bultos=<b64>
+     y escribe kpi-bultos-v1/{fecha}, que es de donde GASTOS saca las cajas.
+     Esta pagina ya no usa ese nodo para calcular, pero el lector NO se puede
+     quitar: si se va, se rompe la cadena y gastos se queda sin bultos. */
+  uE(function(){
+    var h=String(location.hash||"")+"&"+String(location.search||"");
+    var m=h.match(/bultos=([A-Za-z0-9_\-+\/=]+)/);
+    if(!m)return;
+    try{
+      var s=m[1].split("-").join("+").split("_").join("/");
+      while(s.length%4)s+="=";
+      var pl=JSON.parse(decodeURIComponent(escape(atob(s))));
+      if(!pl||!pl.f||!pl.b)throw new Error("payload incompleto");
+      setAvBul("Cargando los bultos del "+fLargo(pl.f)+"...");
+      fput("kpi-bultos-v1/"+pl.f,pl.b).then(function(ok){
+        if(!ok){setAvBul("✗ NO se pudieron cargar los bultos. Vuelve a picarle al botón.");return}
+        var n=0;Object.keys(pl.b).forEach(function(k){
+          var o=pl.b[k]||{};Object.keys(o).forEach(function(p){n+=n0(o[p])})});
+        setAvBul("✓ Bultos cargados del "+fLargo(pl.f)+": "+miles(n)+" cajas");
+        setF(pl.f); setModo("dia");
+        try{history.replaceState(null,"",location.pathname)}catch(e){}
+      });
+    }catch(err){ setAvBul("✗ El link de bultos vino incompleto."); }
+  },[]);
+
+  uE(function(){
+    if(!f)return;
+    setCargando(true);setMsg("");
+    var pr=LINEAS.map(function(L){
+      return fget("rendimientos-hist-v1/"+dk(f)+"/"+L+"/ranchos")
+        .then(function(v){return {L:L,v:v}})});
+    var pn=LINEAS.map(function(L){
+      return fget("nomina-hist-v1/"+L+"/"+f).then(function(v){return {L:L,v:v}})});
+    Promise.all([Promise.all(pr),fget("gastos-dias-v1/"+f),Promise.all(pn),
+                 fget("nomina-dias-v1/"+f)])
+      .then(function(res){
+        var R={},N={};
+        res[0].forEach(function(x){if(x.v&&typeof x.v==="object")R[x.L]=x.v});
+        res[2].forEach(function(x){if(x.v&&typeof x.v==="object")N[x.L]=x.v});
+        setRend(R);setGast(res[1]||null);setNom(N);
+        setHlin(horasDeLinea(res[3]));setCargando(false);
+      }).catch(function(){setCargando(false);setMsg("No se pudo leer.")});
+  },[f]);
+
+  var dia=uM(function(){
+    if(!rend&&!gast&&!nom)return null;
+    return armaDia(rend||{},gast,nom||{},hlin);
+  },[rend,gast,nom,hlin]);
+
+  /* el dia guardado inmediatamente anterior, para comparar */
+  var ant=uM(function(){
+    var ks=Object.keys(hist).filter(function(k){return k<f}).sort();
+    return ks.length?hist[ks[ks.length-1]]:null;
+  },[hist,f]);
+  function antL(L){
+    if(!ant||!ant.filas)return null;
+    for(var i=0;i<ant.filas.length;i++)if(ant.filas[i].L===L)return ant.filas[i];
+    return null;
+  }
+
+  function guarda(){
+    if(!dia||!dia.filas.length){setMsg("Ese día no trae nada que guardar.");return}
+    var e={f:f,ts:Date.now(),filas:dia.filas,tot:dia.tot};
+    setMsg("Guardando...");
+    fput(NODO+"/"+f,e).then(function(ok){
+      if(!ok){setMsg("✗ NO se guardó. Vuelve a intentar.");return}
+      setHist(function(p){var n=Object.assign({},p);n[f]=e;return n});
+      setMsg("✓ Guardado el "+fLargo(f));
+    });
+  }
+
+  var faltan=uM(function(){
+    if(!dia)return [];
+    var out=[];
+    if(!dia.filas.length)return ["No hay nada de este día en ninguna de las apps."];
+    var ver=dia.filas.filter(function(x){return !cul||x.L===cul});
+    var sr=ver.filter(function(x){return x.falta.rend}).map(function(x){return x.L});
+    var sg=ver.filter(function(x){return x.falta.gast}).map(function(x){return x.L});
+    var sn=ver.filter(function(x){return x.falta.nom}).map(function(x){return x.L});
+    if(sr.length)out.push("Falta guardar el día en CONTROL DE EMPAQUE: "+sr.join(", ")+". Sin eso no hay calidades ni merma.");
+    if(sg.length)out.push("Falta guardar el día en GASTOS: "+sg.join(", ")+". Sin eso no hay bultos ni costo.");
+    if(sn.length)out.push("Falta guardar el día en NÓMINA: "+sn.join(", ")+". Sin eso no hay horas.");
+    return out;
+  },[dia,cul]);
+
+  var notas=uM(function(){
+    if(!dia||!ant)return [];
+    var out=[];
+    dia.filas.forEach(function(x){
+      if(cul&&x.L!==cul)return;
+      var a=antL(x.L);if(!a)return;
+      function di(nm,hoyV,antV,menos,fmt){
+        if(!antV)return;
+        var p=100*(hoyV-antV)/Math.abs(antV);
+        if(Math.abs(p)<3)return;
+        var sube=p>0, bueno=menos?!sube:sube;
+        out.push({L:x.L,bueno:bueno,
+          t:nm+" "+(sube?"subió":"bajó")+" "+dec(Math.abs(p),0)+"%, de "+fmt(antV)+" a "+fmt(hoyV)});
+      }
+      di("el costo por bulto",x.cpb,a.cpb,true,function(v){return pesos(v)});
+      di("la merma",x.pm,a.pm,true,function(v){return dec(v,1)+"%"});
+      di("el ritmo de bultos por hora",x.bultosH,a.bultosH,false,function(v){return dec(v,1)});
+      di("la primera",x.pa,a.pa,false,function(v){return dec(v,1)+"%"});
+      di("el tiempo parado",x.hpar,a.hpar,true,function(v){return dec(v,1)+" h"});
+    });
+    return out;
+  },[dia,ant,cul]);
+
+  /* ---- TODAS LAS FECHAS: se arma de los dias ya guardados en kpi-dias-v1 ---- */
+  var fechas=uM(function(){
+    return Object.keys(hist).filter(function(k){
+      var d=hist[k]; if(!d)return false;
+      if(!cul)return true;
+      return (d.filas||[]).some(function(x){return x.L===cul});
+    }).sort();
+  },[hist,cul]);
+
+  function valDe(d,k){                 /* el valor de una medida en un dia guardado */
+    if(!d)return 0;
+    if(!cul){
+      var T=d.tot||{};
+      if(k==="pa"||k==="pm"){           /* los % no se suman: se pesan por rejas */
+        var num=0,den=0;
+        (d.filas||[]).forEach(function(x){num+=n0(x[k])*n0(x.rec);den+=n0(x.rec)});
+        return den>0?num/den:0;
+      }
+      if(k==="bultosH"||k==="rejasH"){
+        var a=0,b=0;
+        (d.filas||[]).forEach(function(x){
+          a+=k==="bultosH"?n0(x.bultos):n0(x.rejas); b+=n0(x.hef)});
+        return b>0?a/b:0;
+      }
+      if(k==="cpb")return n0(T.cpb);
+      return n0(T[k]);
+    }
+    var fl=(d.filas||[]).filter(function(x){return x.L===cul})[0];
+    return fl?n0(fl[k]):0;
+  }
+
+  var M=medDe(med);
+  var serie=uM(function(){
+    return fechas.map(function(k,i){
+      var v=valDe(hist[k],med);
+      var vAnt=i>0?valDe(hist[fechas[i-1]],med):null;
+      var s=sem(v,vAnt,M.menos);
+      return {k:fLbl(k),v:v,col:s?COLSEM[s]:(cul?COLOR[cul]:"#3987e5"),
+              sub:fLargo(k),f:k};
+    });
+  },[fechas,hist,med,cul]);
+
+  /* comparacion entre cultivos en UNA fecha */
+  var compCul=uM(function(){
+    if(!dia)return [];
+    return dia.filas.map(function(x){
+      return {k:x.L,v:n0(x[med]),col:COLOR[x.L],sub:fLargo(f)};
+    });
+  },[dia,med,f]);
+
+  var filasVer=uM(function(){
+    if(!dia)return [];
+    return dia.filas.filter(function(x){return !cul||x.L===cul});
+  },[dia,cul]);
+
+  var totVer=uM(function(){
+    if(!dia)return null;
+    if(!cul)return dia.tot;
+    var x=filasVer[0];
+    if(!x)return null;
+    return {rejas:x.rejas,bultos:x.bultos,hh:x.hh,gasto:x.gasto,cpb:x.cpb,np:x.np,
+            hpar:x.hpar,mot:x.mot};
+  },[dia,cul,filasVer]);
+  var totAnt=uM(function(){
+    if(!ant)return null;
+    if(!cul)return ant.tot;
+    var a=antL(cul); if(!a)return null;
+    return {rejas:a.rejas,bultos:a.bultos,hh:a.hh,gasto:a.gasto,cpb:a.cpb,np:a.np,
+            hpar:a.hpar};
+  },[ant,cul]);
+
+  function Medidas(){
+    return (<div className="chips" style={{marginTop:7}}>
+      {MEDIDAS.map(function(m){return (
+        <div key={m.k} className={"chip"+(med===m.k?" on":"")}
+          style={med===m.k?{background:"linear-gradient(180deg,rgba(57,135,229,.42),rgba(57,135,229,.14))",
+            borderColor:"rgba(57,135,229,.6)"}:null}
+          onClick={function(){setMed(m.k)}}>{m.n}</div>)})}
+    </div>);
+  }
+
+  return (
+  <div className="wrap">
+    <div className="top">
+      <div className="logo">KPIs</div>
+      <div className="ver">PARRAS VALLEY · {BUILD}</div>
+    </div>
+
+    {/* ---------------- FILTROS: CULTIVO Y FECHA ---------------- */}
+    <div className="card">
+      <div className="et">CULTIVO</div>
+      <div className="chips" style={{marginTop:6}}>
+        <div className={"chip"+(cul===""?" on":"")} onClick={function(){setCul("")}}
+          style={cul===""?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.04))"}:null}>
+          TODOS</div>
+        {LINEAS.map(function(L){return (
+          <div key={L} className={"chip"+(cul===L?" on":"")} onClick={function(){setCul(L)}}
+            style={cul===L?{background:"linear-gradient(180deg,"+claro(COLOR[L])+","+COLOR[L]+")",
+              borderColor:claro(COLOR[L]),color:"#06100c"}:null}>
+            <i style={{background:"linear-gradient(180deg,"+claro(COLOR[L])+","+oscuro(COLOR[L])+")"}}/>
+            {L.toUpperCase()}</div>)})}
+      </div>
+
+      <div className="et" style={{marginTop:11}}>FECHA</div>
+      <div className="chips" style={{marginTop:6,alignItems:"center"}}>
+        <div className={"chip"+(modo==="dia"?" on":"")} onClick={function(){setModo("dia")}}
+          style={modo==="dia"?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.04))"}:null}>
+          UN DÍA</div>
+        <div className={"chip"+(modo==="todas"?" on":"")} onClick={function(){setModo("todas")}}
+          style={modo==="todas"?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.04))"}:null}>
+          TODAS LAS FECHAS</div>
+        {modo==="dia"&&<input type="date" value={f}
+          onChange={function(e){setF(e.target.value);setMsg("")}}/>}
+        {modo==="dia"&&<button onClick={function(){setF(mueveDia(f,-1));setMsg("")}}>&laquo;</button>}
+        {modo==="dia"&&<button onClick={function(){setF(mueveDia(f,1));setMsg("")}}>&raquo;</button>}
+        {modo==="dia"&&f!==hoy()&&<button onClick={function(){setF(hoy());setMsg("")}}>hoy</button>}
+        <div style={{flex:1}}/>
+        {modo==="dia"&&<button className="p" onClick={guarda}>Guardar el día</button>}
+      </div>
+      {msg&&<div style={{fontSize:12,fontWeight:800,marginTop:7,
+        color:msg.indexOf("✗")>=0?"#ef6a6a":msg.indexOf("✓")>=0?"#36c436":"var(--dim)"}}>{msg}</div>}
+      <div style={{fontSize:11,color:"var(--dim)",fontWeight:800,marginTop:8}}>
+        {modo==="dia"
+          ? (cul?(cul.toUpperCase()+" · "+fLargo(f)):("TODOS LOS CULTIVOS · "+fLargo(f)))
+          : (cul?(cul.toUpperCase()+" · "+fechas.length+" fechas guardadas")
+                :("TODOS LOS CULTIVOS · "+fechas.length+" fechas guardadas"))}
+      </div>
+    </div>
+
+    {avBul&&<div className={avBul.indexOf("✗")>=0?"avisoR":"avisoV"}>{avBul}</div>}
+
+    {/* ====================  UN DÍA  ==================== */}
+    {modo==="dia"&&(
+    <div>
+      {cargando&&<div className="vacio">Leyendo las apps...</div>}
+      {!cargando&&faltan.map(function(t,i){return <div className="avisoR" key={i}>{t}</div>})}
+
+      {!cargando&&totVer&&filasVer.length>0&&(
+      <div>
+        <div className="card">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",
+            flexWrap:"wrap",gap:7}}>
+            <div className="h2">{fLargo(f)}</div>
+            <div style={{fontSize:10.5,color:"var(--dim)",fontWeight:800}}>
+              {ant?("contra el "+fLargo(ant.f)):"sin día anterior guardado con qué comparar"}</div>
+          </div>
+          <div className="grid">
+            <B k="REJAS" v={miles(totVer.rejas)} c={cmp(totVer.rejas,totAnt&&totAnt.rejas,false)}
+               s={sem(totVer.rejas,totAnt&&totAnt.rejas,false)}/>
+            <B k="BULTOS" v={miles(totVer.bultos)} c={cmp(totVer.bultos,totAnt&&totAnt.bultos,false)}
+               s={sem(totVer.bultos,totAnt&&totAnt.bultos,false)}/>
+            {/* horas hombre, horas de linea y horas efectivas NO llevan semaforo:
+                por si solas no son buenas ni malas (mas fruta pide mas horas).
+                Lo que si se pinta es el $/bulto y el ritmo, que es donde se ve
+                si esas horas rindieron. */}
+            <B k="HORAS HOMBRE" v={dec(totVer.hh,1)} c={cmp(totVer.hh,totAnt&&totAnt.hh,true)}/>
+            <B k="GASTO" v={pesos(totVer.gasto)} c={cmp(totVer.gasto,totAnt&&totAnt.gasto,true)}
+               s={sem(totVer.gasto,totAnt&&totAnt.gasto,true)}/>
+            <B k="$ / BULTO" v={pesos(totVer.cpb)} c={cmp(totVer.cpb,totAnt&&totAnt.cpb,true)}
+               s={sem(totVer.cpb,totAnt&&totAnt.cpb,true)}/>
+            <B k="GENTE" v={miles(totVer.np)} c={null}/>
+          </div>
+          <Leyenda/>
+        </div>
+
+        {/* todos los cultivos en una sola fecha, comparados */}
+        {!cul&&dia.filas.length>1&&(
+        <div className="card">
+          <div className="h2">{M.n} &middot; todos los cultivos</div>
+          <Medidas/>
+          <Barras datos={compCul} fmt={M.fmt} alto={150}/>
+          <div className="lg">{dia.filas.map(function(x){return (
+            <span key={x.L}><i style={{background:"linear-gradient(180deg,"+claro(COLOR[x.L])+","+oscuro(COLOR[x.L])+")"}}/>
+              {x.L}</span>)})}</div>
+        </div>)}
+
+        {filasVer.map(function(x){
+          var a=antL(x.L);
+          return (
+          <div className="card" key={x.L}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+              flexWrap:"wrap",gap:9}}>
+              <span className="pill" style={{background:
+                "linear-gradient(180deg,"+claro(COLOR[x.L])+","+oscuro(COLOR[x.L])+")"}}>
+                {x.L.toUpperCase()}</span>
+              <div style={{textAlign:"right"}}>
+                <div className="et">COSTO POR BULTO</div>
+                <div className="big" style={{color:
+                  sem(x.cpb,a&&a.cpb,true)?COLSEM[sem(x.cpb,a&&a.cpb,true)]:claro(COLOR[x.L])}}>
+                  {pesos(x.cpb)}</div>
+                <Cmp c={cmp(x.cpb,a&&a.cpb,true)}/>
+              </div>
+            </div>
+            <div className="grid">
+              <B k="REJAS QUE LLEGARON" v={miles(x.rejas)} c={cmp(x.rejas,a&&a.rejas,false)} s={sem(x.rejas,a&&a.rejas,false)}/>
+              <B k="BULTOS EMPACADOS" v={miles(x.bultos)} c={cmp(x.bultos,a&&a.bultos,false)} s={sem(x.bultos,a&&a.bultos,false)}/>
+              <B k={"HORAS DE LÍNEA"+(x.exacta?"":" (aprox)")} v={dec(x.h,1)} c={cmp(x.h,a&&a.h,true)}/>
+              <B k="HORAS EFECTIVAS" v={dec(x.hef,1)} c={cmp(x.hef,a&&a.hef,false)} col="#8fc6ff"/>
+              <B k="REJAS POR HORA" v={dec(x.rejasH,0)} c={cmp(x.rejasH,a&&a.rejasH,false)} s={sem(x.rejasH,a&&a.rejasH,false)}/>
+              <B k="BULTOS POR HORA" v={dec(x.bultosH,0)} c={cmp(x.bultosH,a&&a.bultosH,false)} s={sem(x.bultosH,a&&a.bultosH,false)}/>
+              <B k="GASTO" v={pesos(x.gasto)} c={cmp(x.gasto,a&&a.gasto,true)} s={sem(x.gasto,a&&a.gasto,true)}/>
+              <B k="PRIMERA" v={dec(x.pa,1)+"%"} c={cmp(x.pa,a&&a.pa,false)} s={sem(x.pa,a&&a.pa,false)}/>
+              <B k="SEGUNDA" v={dec(x.pb,1)+"%"} c={cmp(x.pb,a&&a.pb,true)} s={sem(x.pb,a&&a.pb,true)}/>
+              <B k="TERCERA" v={dec(x.pc,1)+"%"} c={cmp(x.pc,a&&a.pc,true)} s={sem(x.pc,a&&a.pc,true)}/>
+              <B k="MERMA" v={dec(x.pm,1)+"%"} c={cmp(x.pm,a&&a.pm,true)} s={sem(x.pm,a&&a.pm,true)}/>
+              <B k="HORAS PARADA" v={dec(x.hpar,1)} c={cmp(x.hpar,a&&a.hpar,true)} s={sem(x.hpar,a&&a.hpar,true)}/>
+            </div>
+            <div style={{fontSize:10.5,color:"var(--dim)",marginTop:8,fontWeight:700}}>
+              {miles(x.np)} personas · {dec(x.hh,1)} horas hombre · {dec(x.hx,1)} h extra
+              {x.hpar>0&&<div style={{color:"#ef6a6a",marginTop:4,fontSize:11.5,fontWeight:800}}>
+                de las {dec(x.h,1)} h, {dec(x.hef,1)} trabajando y {dec(x.hpar,1)} paradas: {listaParo(x.mot)}
+                <span style={{color:"var(--dim)"}}> · el ritmo va sobre las efectivas</span></div>}
+              <span style={{marginLeft:5}}>&middot; los % van sobre lo que llegó</span>
+            </div>
+          </div>);
+        })}
+
+        {!cul&&dia.tot.hpar>0&&(
+        <div className="card">
+          <div className="et" style={{marginBottom:7}}>HORAS PARADAS DEL DÍA</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:9,flexWrap:"wrap"}}>
+            <div className="big" style={{color:"#d03b3b"}}>{dec(dia.tot.hpar,1)} h</div>
+            <div style={{fontSize:12,color:"var(--dim)",fontWeight:800}}>{listaParo(dia.tot.mot)}</div>
+          </div>
+          <table style={{marginTop:9}}>
+            <thead><tr><th>LÍNEA</th><th>HORAS</th><th>EFECTIVAS</th><th>PARADA</th><th>POR QUÉ</th></tr></thead>
+            <tbody>
+              {dia.filas.filter(function(x){return x.hpar>0}).map(function(x){return (
+                <tr key={x.L}>
+                  <td><span className="pill" style={{fontSize:10,padding:"2px 8px",
+                    background:"linear-gradient(180deg,"+claro(COLOR[x.L])+","+oscuro(COLOR[x.L])+")"}}>{x.L}</span></td>
+                  <td>{dec(x.h,1)}</td>
+                  <td style={{color:"#36c436",fontWeight:900}}>{dec(x.hef,1)}</td>
+                  <td style={{color:"#ef6a6a",fontWeight:900}}>{dec(x.hpar,1)}</td>
+                  <td style={{fontSize:11,color:"var(--dim)",whiteSpace:"normal"}}>{listaParo(x.mot)}</td>
+                </tr>)})}
+            </tbody>
+          </table>
+        </div>)}
+
+        {notas.length>0&&(
+        <div className="card">
+          <div className="et" style={{marginBottom:7}}>QUÉ CAMBIÓ CONTRA EL DÍA ANTERIOR</div>
+          {notas.map(function(n,i){return (
+            <div className="nota" key={i}>
+              <span className="pill" style={{fontSize:10,padding:"2px 8px",
+                background:"linear-gradient(180deg,"+claro(COLOR[n.L])+","+oscuro(COLOR[n.L])+")"}}>{n.L}</span>
+              <span style={{marginLeft:7,color:n.bueno?"#36c436":"#ef6a6a",fontWeight:800}}>{n.t}</span>
+            </div>)})}
+        </div>)}
+      </div>)}
+
+      {!cargando&&dia&&filasVer.length===0&&
+        <div className="vacio">{cul?("No hay "+cul+" este día."):"No hay nada de este día todavía."}</div>}
+    </div>)}
+
+    {/* ====================  TODAS LAS FECHAS  ==================== */}
+    {modo==="todas"&&(
+    <div>
+      {fechas.length===0
+        ? <div className="vacio">Todavía no hay días guardados{cul?(" de "+cul):""}.</div>
+        : (<div>
+          <div className="card">
+            <div className="h2">{M.n} · {cul?cul:"todos los cultivos"}</div>
+            <Medidas/>
+            <Barras datos={serie} fmt={M.fmt} alto={190}/>
+            <Leyenda neutro={true}/>
+          </div>
+          <div className="card">
+            <div className="et" style={{marginBottom:6}}>LOS DÍAS GUARDADOS</div>
+            <table>
+              <thead><tr>
+                <th>DÍA</th><th>REJAS</th><th>BULTOS</th><th>B/H</th>
+                <th>GASTO</th><th>$/BULTO</th><th>MERMA</th><th>1a</th><th>PARO</th><th></th>
+              </tr></thead>
+              <tbody>
+                {fechas.slice().reverse().map(function(k){
+                  var sC2=sem(valDe(hist[k],"cpb"),
+                    (function(){var i=fechas.indexOf(k);return i>0?valDe(hist[fechas[i-1]],"cpb"):null})(),true);
+                  return (<tr key={k}>
+                    <td style={{fontWeight:900}}>{fLbl(k)}</td>
+                    <td>{miles(valDe(hist[k],"rejas"))}</td>
+                    <td>{miles(valDe(hist[k],"bultos"))}</td>
+                    <td>{dec(valDe(hist[k],"bultosH"),0)}</td>
+                    <td>{pesos(valDe(hist[k],"gasto"))}</td>
+                    <td style={{fontWeight:900,color:sC2?COLSEM[sC2]:"var(--tx)"}}>
+                      {pesos(valDe(hist[k],"cpb"))}</td>
+                    <td>{dec(valDe(hist[k],"pm"),1)}%</td>
+                    <td>{dec(valDe(hist[k],"pa"),1)}%</td>
+                    <td style={{color:valDe(hist[k],"hpar")>0?"#ef6a6a":"var(--dim)"}}>
+                      {dec(valDe(hist[k],"hpar"),1)}</td>
+                    <td><button onClick={function(){setF(k);setModo("dia")}}>abrir</button></td>
+                  </tr>)})}
+              </tbody>
+            </table>
+          </div>
+        </div>)}
+    </div>)}
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById("r")).render(<App/>);
+</script>
+</body>
+</html>

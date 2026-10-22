@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPIs | Parras Valley</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+/* ---------------------------------------------------------------------------
+   KPI8 - 14/10/2026.
+   [stated] Miguel: "eso de mejor y peor que el dia anterior, eso quitaselo, no
+   me gusta. Lo que quiero son graficas de colores bonitas... colores elegantes,
+   oscuros, como lo de la bolsa de valores. Negros, fondo negro con contrastes
+   verde, rojo y amarillo en las lineas. Son lineas continuas. Y que todo lo que
+   vayas a enumerar o KPI quepan en UNA SOLA LINEA HORIZONTAL. No lo quiero en
+   dos renglones para una misma linea."
+   - Fuera el semaforo y fuera el "que cambio contra el dia anterior".
+   - Los KPIs de cada cultivo van en UN SOLO RENGLON que no se parte. Si no
+     caben en la pantalla, el renglon se recorre de lado, pero nunca baja a un
+     segundo renglon.
+   - Graficas de LINEA CONTINUA sobre negro.
+--------------------------------------------------------------------------- */
+ :root{
+   --bg:#05070a; --sup:#080c11;
+   --card:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.008));
+   --bd:rgba(255,255,255,.09);
+   --tx:#e9f0f5; --dim:#56708a; --az:#1f7fc4;
+   --rel:0 1px 0 rgba(255,255,255,.09) inset, 0 -1px 0 rgba(0,0,0,.6) inset,
+         0 10px 22px -10px #000;
+   --relf:0 1px 0 rgba(255,255,255,.08) inset, 0 -2px 0 rgba(0,0,0,.55) inset,
+          0 4px 10px -5px rgba(0,0,0,.9);
+ }
+ *{box-sizing:border-box}
+ body{background:var(--bg);color:var(--tx);margin:0;padding:0;
+   font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+   -webkit-font-smoothing:antialiased}
+ .wrap{max-width:1180px;margin:0 auto;padding:12px 12px 60px}
+
+ .top{display:flex;align-items:baseline;gap:9px;margin-bottom:11px}
+ .logo{font-size:21px;font-weight:900;letter-spacing:3;color:#dbe7f2}
+ .ver{font-size:10px;color:var(--dim);font-weight:800;letter-spacing:.6}
+
+ .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;
+   padding:12px 13px;margin-bottom:10px;box-shadow:var(--rel)}
+ .et{font-size:9px;color:var(--dim);font-weight:900;letter-spacing:1.1}
+ .h2{font-size:14px;font-weight:900;letter-spacing:.3}
+
+ input,select{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.14);
+   border-radius:9px;padding:7px 9px;color:#bcd3e8;font-family:inherit;
+   font-size:15px;font-weight:800;outline:none;box-shadow:var(--relf)}
+ button{font-family:inherit;cursor:pointer;border-radius:9px;font-weight:800;
+   font-size:12px;padding:7px 11px;border:1px solid var(--bd);
+   background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.01));
+   color:var(--dim);box-shadow:var(--relf);transition:transform .07s}
+ button:active{transform:translateY(1px)}
+ button.rj{border-color:rgba(220,38,38,.6);
+   background:linear-gradient(180deg,rgba(220,38,38,.3),rgba(220,38,38,.1));color:#ff9a9a}
+ .congela{background:linear-gradient(180deg,rgba(31,127,196,.14),rgba(31,127,196,.03));
+   border:1px solid rgba(31,127,196,.35);border-radius:11px;padding:9px 12px;
+   font-size:12px;font-weight:700;color:#bcd3e8;line-height:1.55;margin-top:9px}
+ button.p{border-color:rgba(22,163,74,.6);
+   background:linear-gradient(180deg,rgba(22,163,74,.34),rgba(22,163,74,.12));color:#5ee08a}
+
+ .chips{display:flex;gap:5px;flex-wrap:wrap}
+ .chip{display:inline-flex;align-items:center;gap:5px;padding:6px 10px;
+   border-radius:999px;font-size:12px;font-weight:900;cursor:pointer;
+   border:1px solid var(--bd);color:var(--dim);
+   background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.01));
+   box-shadow:var(--relf);white-space:nowrap}
+ .chip i{width:9px;height:9px;border-radius:3px;display:inline-block}
+ .chip.on{color:#fff;border-color:rgba(255,255,255,.3)}
+
+ /* ---- UN SOLO RENGLON DE KPIs, nunca dos ---- */
+ .fila{display:flex;flex-wrap:nowrap;gap:6px;margin-top:9px;
+   overflow-x:auto;overflow-y:hidden;padding-bottom:4px;
+   scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
+ .fila::-webkit-scrollbar{height:6px}
+ .fila::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
+ .b{flex:1 1 0;min-width:62px;border-radius:9px;padding:6px 7px 7px;
+   border:1px solid var(--bd);
+   background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.3));
+   box-shadow:var(--relf)}
+ .b .k{font-size:8px;color:var(--dim);font-weight:900;letter-spacing:.4;
+   line-height:1.2;height:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .b .v{font-size:14.5px;font-weight:900;margin-top:3px;line-height:1.15;
+   font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+
+ .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;
+   border-radius:999px;font-weight:900;font-size:12px;letter-spacing:.5;color:#fff;
+   box-shadow:0 1px 0 rgba(255,255,255,.22) inset,0 4px 10px -4px #000}
+ .big{font-size:25px;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+
+ .avisoR{background:linear-gradient(180deg,rgba(220,38,38,.18),rgba(220,38,38,.04));
+   border:1px solid rgba(220,38,38,.4);color:#ffb3b3;border-radius:11px;
+   padding:9px 12px;margin-bottom:9px;font-weight:700;font-size:13px;box-shadow:var(--relf)}
+ .avisoV{background:linear-gradient(180deg,rgba(22,163,74,.18),rgba(22,163,74,.04));
+   border:1px solid rgba(22,163,74,.45);color:#7ceb9a;border-radius:11px;
+   padding:9px 12px;margin-bottom:9px;font-weight:800;font-size:13px;box-shadow:var(--relf)}
+
+ /* ---- LA TABLA CORRIDA, estilo hoja de calculo ----
+    [stated] Miguel, 16/10/2026: "Lo quiero en la informacion asi horizontal, a
+    manera de tabla de Excel, corrida hacia abajo. Pero con el general arriba en
+    el encabezado y hacia abajo el desglose." */
+ tr.gen td{background:rgba(255,255,255,.055);font-weight:900;font-size:13.5px;
+   border-top:2px solid rgba(255,255,255,.18);border-bottom:1px solid var(--bd)}
+ tr.gen td:first-child{letter-spacing:.3}
+ tr.det td:first-child{padding-left:14px}
+ tr.por td{font-size:11px;color:#ef6a6a;font-weight:800;text-align:left;
+   padding:2px 4px 8px 14px;border-bottom:1px solid var(--bd)}
+ table{width:100%;border-collapse:collapse}
+ th{font-size:8.5px;color:var(--dim);font-weight:900;letter-spacing:.7;padding:6px 4px;
+    text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap}
+ th:first-child,td:first-child{text-align:left}
+ td{padding:7px 4px;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums;
+    border-bottom:1px solid rgba(255,255,255,.045);white-space:nowrap}
+ .tbl{overflow-x:auto}
+ .vacio{text-align:center;color:#33465a;padding:34px 10px;font-size:15px;font-weight:800}
+
+ /* ---- barras horizontales ---- */
+ .bhr{display:flex;align-items:center;gap:9px;padding:3px 0;
+   border-bottom:1px solid rgba(255,255,255,.04)}
+ .bhf{width:54px;flex:none;font-size:11px;font-weight:900;color:var(--dim);
+   text-align:right;font-variant-numeric:tabular-nums}
+ .bhb{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+ .bhl{display:flex;align-items:center;gap:7px;width:100%}
+ .bhv{font-size:11px;font-weight:900;white-space:nowrap;
+   font-variant-numeric:tabular-nums;flex:none}
+ .tend{margin-top:9px;display:flex;flex-direction:column;gap:3px}
+ .tendr{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;
+   flex-wrap:wrap;font-variant-numeric:tabular-nums}
+ .tendr i{width:11px;height:3px;border-radius:2px;display:inline-block;flex:none}
+ .mut2{color:var(--dim);font-weight:700;font-size:11px}
+ .tendp{margin-left:2px;padding:2px 8px;border-radius:999px;font-size:11px;
+   font-weight:900;background:rgba(255,255,255,.07);color:var(--tx)}
+
+ .lg{display:flex;gap:11px;flex-wrap:wrap;margin-top:6px;font-size:11px;font-weight:800}
+ .lg span{display:inline-flex;align-items:center;gap:5px;color:var(--dim)}
+ .lg i{width:11px;height:3px;border-radius:2px;display:inline-block}
+</style>
+</head>
+<body>
+<div id="r"></div>
+<script type="text/babel">
+var BUILD="v2026-10-22-KPI27";
+var FB="https://parrasvalley-default-rtdb.firebaseio.com";
+var NODO="kpi-dias-v1";
+/* LA RAYA ENTRE LO NUEVO Y LO ANTERIOR. Es la misma que trae la aplicacion de
+   gastos: del 12/10/2026 para aca son los dias del sistema nuevo. Lo de antes
+   quedo de cuando se capturaba de otra forma, viene salteado (dias hay y dias
+   no) y revuelve la grafica, asi que por defecto se ve SOLO LO NUEVO.
+   [stated] Miguel, 14/10/2026: "le quitaste lo de el historial nuevo y viejo...
+   me das un historial intermitente porque dias hay, dias no. Yo queria ver lo
+   nuevo. Dejamelo para ver lo nuevo y lo viejo." */
+var CORTE="2026-10-12";               /* el historial propio de KPIs, arranca vacio */
+var LINEAS=["Persa","Slicer","Europeo","Morron","Minibel"];
+/* COLORES, estilo pantalla de bolsa de valores sobre fondo negro.
+   [stated] Miguel, 14/10/2026: "colores elegantes, oscuros, como lo de la bolsa
+   de valores. Negros, fondo negro con contrastes verde, rojo y amarillo".
+   Son colores de IDENTIDAD de cada cultivo, no semaforo: el verde no quiere
+   decir bien ni el rojo mal, nada mas dicen de que cultivo es la linea. Los
+   cinco se midieron contra el fondo negro: todos pasan contraste y se
+   distinguen entre si tambien para quien ve mal los colores. */
+var COLOR={Persa:"#16a34a",Slicer:"#1f7fc4",Europeo:"#bd8c00",
+           Morron:"#dc2626",Minibel:"#a96ae8"};
+function claro(h){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
+  function m(x){return Math.min(255,Math.round(x+(255-x)*0.34))}
+  return "rgb("+m(r)+","+m(g)+","+m(b)+")"}
+function oscuro(h){var r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
+  return "rgb("+Math.round(r*.56)+","+Math.round(g*.56)+","+Math.round(b*.56)+")"}
+/* Persa, Morron y Minibel se miden en KILOS; Europeo y Slicer en PIEZAS.
+   Control de empaque ya guarda lo llegado y lo empacado en la unidad del cultivo. */
+var UNID={Persa:"kg",Slicer:"pz",Europeo:"pz",Morron:"kg",Minibel:"kg"};
+
+var uS=React.useState,uE=React.useEffect,uM=React.useMemo;
+function fget(k){return fetch(FB+"/"+k+".json?t="+Date.now())
+  .then(function(r){return r.json()}).catch(function(){return null})}
+function fput(k,v){return fetch(FB+"/"+k+".json",{method:"PUT",
+  headers:{"Content-Type":"application/json"},body:JSON.stringify(v)})
+  .then(function(r){return !!(r&&r.ok)}).catch(function(){return false})}
+/* solo las llaves de un nodo, sin bajarse todo el contenido */
+function fkeys(k){return fetch(FB+"/"+k+".json?shallow=true&t="+Date.now())
+  .then(function(r){return r.json()}).catch(function(){return null})}
+/* lee de las otras apps todo lo de UN dia. Lo usa la pantalla y el llenado
+   del historial, para que los dos armen el dia exactamente igual. */
+function leeDia(f){
+  var pr=LINEAS.map(function(L){
+    return fget("rendimientos-hist-v1/"+dk(f)+"/"+L+"/ranchos")
+      .then(function(v){return {L:L,v:v}})});
+  var pn=LINEAS.map(function(L){
+    return fget("nomina-hist-v1/"+L+"/"+f).then(function(v){return {L:L,v:v}})});
+  return Promise.all([Promise.all(pr),fget("gastos-dias-v1/"+f),Promise.all(pn),
+                      fget("nomina-dias-v1/"+f),fget("recibo-hist-v1"),
+                      fget("kpi-bultos-v1/"+f),fget("gastos-v2")])
+    .then(function(res){
+      var R={},N={};
+      res[0].forEach(function(x){if(x.v&&typeof x.v==="object")R[x.L]=x.v});
+      res[2].forEach(function(x){if(x.v&&typeof x.v==="object")N[x.L]=x.v});
+      return {rend:R,gast:res[1]||null,nom:N,hlin:horasDeLinea(res[3]),
+              rec:(rejasDeRecibo(res[4])[f]||null),bul:res[5]||null,
+              gv:gastoDelDia(res[6],f)};
+    });
+}
+function n0(v){var x=parseFloat(v);return isNaN(x)?0:x}
+function r1(n){return Math.round(n*10)/10}
+function r2(n){return Math.round(n*100)/100}
+function miles(n){return n0(n).toLocaleString("es-MX",{maximumFractionDigits:0})}
+function dec(n,d){return n0(n).toLocaleString("es-MX",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function pesos(n){return "$"+dec(n,2)}
+function dk(f){return String(f||"").replace(/-/g,"")}
+function hoy(){var d=new Date();return d.toISOString().slice(0,10)}
+function mueveDia(f,n){var d=new Date(f+"T12:00:00");d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10)}
+var MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+/* cuando se tomo la copia de un dia */
+function cuando(ts){
+  if(!ts)return "antes";
+  var d=new Date(ts), z=function(n){return ("0"+n).slice(-2)};
+  return z(d.getDate())+"/"+z(d.getMonth()+1)+"/"+d.getFullYear()+" "+
+         z(d.getHours())+":"+z(d.getMinutes());
+}
+function fLargo(f){if(!f)return "";var p=f.split("-");
+  return parseInt(p[2],10)+" "+MES[parseInt(p[1],10)-1]+" "+p[0]}
+
+
+/* ---------- LAS HORAS DE TRABAJO DE LA LINEA, DEL HORARIO REAL ----------
+   [stated] Miguel, 14/10/2026: "Lo que importa es cuanto trabajo la LINEA, no
+   horas hombre. Si la linea trabajo cinco horas con diez hombres traes 50 horas
+   hombre, pero realmente fueron cinco horas de trabajo."
+   Se lee el horario de verdad, nomina-dias-v1/{fecha}.lin, y se SUMAN las horas
+   que cada cuadrilla le metio a ese cultivo.
+   [stated] 14/10: cuando DOS cuadrillas trabajan el mismo cultivo al mismo tiempo,
+   las horas SE SUMAN, no se juntan: "eran dos lineas, linea Persa/Slicer trabajando
+   para el Slicer y linea Euro trabajando para el Slicer. Si tu sumas eso te va a dar
+   10.5". Se intento quitar el traslape y daba 8, y el no lo reconocia como suyo.
+   Las horas de cada cuadrilla siempre cuadran con su jornada.
+   Comida y Cena no son trabajo y no cuentan. Los paros SI cuentan como tiempo de
+   la linea (la linea estaba ocupada en esa fruta) y ademas se reportan aparte,
+   porque son justo lo que explica un costo alto. */
+function aMin(t){var m=/^(\d{1,2}):(\d{2})$/.exec(String(t||""));
+  return m?parseInt(m[1],10)*60+parseInt(m[2],10):null}
+function esComida(a){var x=String(a||"").toLowerCase();
+  return x.indexOf("comida")>=0||x.indexOf("cena")>=0}
+function esParo(a){return String(a||"").toLowerCase().indexOf("paro")>=0}
+function suma(iv){var t=0;iv.forEach(function(x){t+=x[1]-x[0]});return t}
+function horasDeLinea(dias){
+  var out={};                       /* area -> {min, paro} */
+  if(!dias||!dias.lin)return null;
+  Object.keys(dias.lin).forEach(function(k){
+    var rr=dias.lin[k]; if(!rr||!rr.length)return;
+    /* la primera area real del dia, para los paros que caen antes de empezar */
+    var prim="";
+    for(var j=0;j<rr.length;j++){var a0=rr[j].ar;
+      if(a0&&!esComida(a0)&&!esParo(a0)){prim=a0;break}}
+    var ult="";
+    for(var i=0;i<rr.length;i++){
+      var r=rr[i]||{}, de=aMin(r.de), a=aMin(r.a), ar=r.ar;
+      if(de===null||a===null)continue;
+      if(a<=de)a+=1440;                     /* paso de la medianoche */
+      if(esComida(ar))continue;             /* no es trabajo */
+      var area=ar;
+      if(esParo(ar))area=ult||prim;         /* el paro se carga donde venia */
+      if(!area)continue;
+      if(!out[area])out[area]={iv:[],ivP:[]};
+      out[area].iv.push([de,a]);
+      if(esParo(ar))out[area].ivP.push([de,a,String(ar)]);
+      if(!esParo(ar))ult=ar;
+    }
+  });
+  var res={};
+  Object.keys(out).forEach(function(A){
+    /* El desglose del paro va MINUTO POR MINUTO: si dos cuadrillas estan paradas
+       a la misma hora en el mismo cultivo, ese minuto se cuenta UNA vez y se le
+       queda al motivo que llego primero. Asi los motivos siempre suman el total
+       de horas paradas, ni mas ni menos. */
+    /* El motivo se suma igual que las horas: si dos cuadrillas estan paradas
+       a la misma hora en el mismo cultivo, son dos lineas paradas y cuentan las
+       dos. Asi los motivos suman exacto las horas paradas de ese cultivo. */
+    var mot={};
+    out[A].ivP.forEach(function(iv){
+      mot[iv[2]]=(mot[iv[2]]||0)+(iv[1]-iv[0]);
+    });
+    res[A]={min:suma(out[A].iv),paro:suma(out[A].ivP),mot:mot};
+  });
+  return res;
+}
+
+var MOT={"Paro fruta":"falta de fruta","Paro mecanico":"falla mecánica",
+          "Paro luz":"falta de luz","Paro otro":"otro"};
+function nomMot(k){return MOT[k]||String(k).replace(/^Paro\s*/i,"")}
+function listaParo(mot){
+  var ks=Object.keys(mot||{}).sort(function(a,b){return mot[b]-mot[a]});
+  if(!ks.length)return "";
+  return ks.map(function(k){return dec(mot[k]/60,1)+" h "+nomMot(k)}).join(" · ");
+}
+function calVal(c,u){
+  if(!c)return 0;
+  if(u==="pz"){
+    if(n0(c.pz)>0)return n0(c.pz);          /* Europeo: ya viene en piezas */
+    if(n0(c.cj)>0)return n0(c.cj)*36;       /* Slicer: cajas de 36 CT -> piezas */
+    return 0;
+  }
+  return n0(c.kg);
+}
+
+/* ---------- LAS REJAS QUE CORTO CAMPOS, DE LA APP DE RECIBO ----------
+   [stated] Miguel, 17/10/2026: "Sigue sin darme las rejas que corto Campos el
+   dia." Las rejas de CONTROL DE EMPAQUE solo existen cuando ese dia ya se
+   guardo alla, y solo de las mallas que se alcanzaron a procesar. Lo que se
+   CORTO vive en RECIBO: `recibo-hist-v1` es un ARREGLO de cierres,
+   {fecha:"mar, 13 oct 2026", lineaNombre:"Persa", totalRejas, lotes:[...]}.
+   Un dia puede traer varios cierres de la misma linea: se suman.            */
+var MES3K={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+function dosD(n){n=parseInt(n,10);return (n<10?"0":"")+n}
+function leeFechaTexto(f){
+  var s=String(f||"").toLowerCase().replace(/[.,]/g," ");
+  var m=s.match(/(\d{4})\s*[-\/]\s*(\d{1,2})\s*[-\/]\s*(\d{1,2})/);
+  if(m)return m[1]+"-"+dosD(m[2])+"-"+dosD(m[3]);
+  m=s.match(/(\d{1,2})\s*[-\/]\s*(\d{1,2})\s*[-\/]\s*(\d{4})/);
+  if(m)return m[3]+"-"+dosD(m[2])+"-"+dosD(m[1]);
+  s=s.replace(/\bde\b/g," ").replace(/\bdel\b/g," ");
+  m=s.match(/(\d{1,2})\s+([a-zñáéíóú]+)\s+(\d{4})/);
+  if(m&&MES3K[m[2].slice(0,3)])return m[3]+"-"+dosD(MES3K[m[2].slice(0,3)])+"-"+dosD(m[1]);
+  m=s.match(/([a-zñáéíóú]+)\s+(\d{1,2})\s+(\d{4})/);
+  if(m&&MES3K[m[1].slice(0,3)])return m[3]+"-"+dosD(MES3K[m[1].slice(0,3)])+"-"+dosD(m[2]);
+  return "";
+}
+/* {fecha ISO: {Linea: rejas}} con todo lo que corto Campos */
+function rejasDeRecibo(arr){
+  var out={};
+  var ls=[];
+  if(Array.isArray(arr))ls=arr.filter(Boolean);
+  else if(arr&&typeof arr==="object")ls=Object.keys(arr).map(function(k){return arr[k]}).filter(Boolean);
+  ls.forEach(function(h){
+    var f=leeFechaTexto(h.fecha); if(!f)return;
+    var L=String(h.lineaNombre||"").trim();
+    L=LINEAS.filter(function(x){return x.toLowerCase()===L.toLowerCase()})[0];
+    if(!L)return;
+    if(!out[f])out[f]={};
+    out[f][L]=(out[f][L]||0)+n0(h.totalRejas);
+  });
+  return out;
+}
+
+/* LOS PORCENTAJES DEL GENERAL se pesan con lo que LLEGO, pero solo cuando
+   todas las lineas se miden igual. El Persa va en kilos y el Slicer en piezas:
+   juntar kilos con piezas daria un porcentaje inventado, asi que ahi va raya. */
+function pctGen(T,filas){
+  var u=null, mixto=false, rec=0, emp=0, sa=0, sb=0, sc=0;
+  filas.forEach(function(x){
+    if(u===null)u=x.u; else if(u!==x.u)mixto=true;
+    rec+=n0(x.rec); emp+=n0(x.emp);
+    sa+=n0(x.pa)*n0(x.rec); sb+=n0(x.pb)*n0(x.rec); sc+=n0(x.pc)*n0(x.rec);
+  });
+  T.rec=rec; T.emp=emp; T.merma=rec-emp; T.mixto=mixto;
+  if(mixto||rec<=0){T.pa=0;T.pb=0;T.pc=0;T.pm=0;return}
+  T.pa=sa/rec; T.pb=sb/rec; T.pc=sc/rec; T.pm=100*(rec-emp)/rec;
+}
+/* ---------- arma el dia con lo que ya guardaron las otras apps ---------- */
+/* ===== BULTOS DE RESPALDO, SOLO PARA LA PANTALLA (KPI21, 17/10/2026) =====
+   Si el dia no esta guardado en gastos, los bultos se sacan del nodo
+   kpi-bultos-v1 que escribe el boton verde, con la MISMA conversion de gastos.
+   OJO: esto NO toca el mapeo del historial ni escribe nada. El KPI20 si lo
+   tocaba y por eso se vio afectado el gasto del dia. Aqui no se escribe. */
+function desEsc(k){return String(k).split("~s").join("/");}
+function sumaObj(o){
+  if(o==null)return 0;
+  if(typeof o==="number")return o;
+  if(typeof o==="string"){var x=parseFloat(o);return isNaN(x)?0:x;}
+  var t=0;Object.keys(o).forEach(function(k){t+=sumaObj(o[k]);});return t;
+}
+function factorBulto(linea,llave){
+  var p=desEsc(llave).toUpperCase().replace(/\s+/g," ").trim();
+  var ter=p.indexOf("TERCERA")>=0||p.indexOf("CHOICE")>=0||p.indexOf("PLAIN")>=0;
+  var bus=p.indexOf("BUSHEL")===0||p.indexOf("1/9")>=0;
+  if(linea==="Persa"||linea==="Embolsado")return p.indexOf("40 LBS")===0?2:1;
+  if(linea==="Slicer"){
+    if(p.indexOf("50 LBS")===0)return ter?1:2;
+    if(p.indexOf("18 CT")===0)return 0.5;
+    if(p.indexOf("42 CT")===0)return 1.17;
+    if(p.indexOf("62 CT")===0)return 1.72;
+    if(bus)return 2;
+    return 1;
+  }
+  if(linea==="Europeo"){
+    if(ter||bus)return 1;
+    if(p.indexOf("24 CT")===0)return 2;
+    if(p.indexOf("33 CT")===0)return 2.75;
+    return 1;
+  }
+  if(linea==="Morron"){
+    if(p.indexOf("12X2")===0)return 0.975;
+    if(p.indexOf("8X6")===0)return 1.06;
+    if(p.indexOf("24 CT RED")===0)return 0.99;
+    if(p.indexOf("22-24 CT")===0)return 1;
+    if(bus||p.indexOf("25 LBS")===0)return 2.255;
+    return 1;
+  }
+  return 1;
+}
+function convLinea(o,linea){
+  if(o==null)return 0;
+  var t=0;Object.keys(o).forEach(function(k){t+=sumaObj(o[k])*factorBulto(linea,k);});
+  return t;
+}
+function bultosDe(B,a){
+  if(!B)return null;
+  var t=convLinea(B[a],a);
+  if(a==="Persa")t+=convLinea(B.Embolsado,"Embolsado");
+  return Math.round(t*100)/100;
+}
+/* ===== EL GASTO DE RESPALDO, DE LAS CAPTURAS DE GASTOS (KPI22) =====
+   El gasto salia SOLO de gastos-dias-v1, o sea del boton "Guardar dia".
+   Pero las capturas de verdad viven en gastos-v2, que es de donde la app de
+   gastos las lee. Aqui se leen de ahi mismo, asi que el costo se ve sin tener
+   que guardar nada. Si el dia SI esta guardado, ese sigue mandando. */
+function kFecha(f){
+  var s=String(f||"").trim(),m;
+  m=/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/.exec(s);
+  if(m){var a=+m[3];if(a<100)a+=2000;return a*10000+(+m[2])*100+(+m[1]);}
+  m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+  if(m)return (+m[1])*10000+(+m[2])*100+(+m[3]);
+  return 0;
+}
+/* suma por linea el costo capturado de ESE dia */
+function gastoDelDia(reg,f){
+  if(!reg)return null;
+  var lista=[];
+  if(Object.prototype.toString.call(reg)==="[object Array]")lista=reg;
+  else Object.keys(reg).forEach(function(k){lista.push(reg[k])});
+  var kf=kFecha(f), o={}, hubo=false;
+  lista.forEach(function(r){
+    if(!r||kFecha(r.fecha)!==kf)return;
+    var a=r.area; if(!a)return;
+    o[a]=(o[a]||0)+n0(r.totalCosto);
+    hubo=true;
+  });
+  return hubo?o:null;
+}
+function armaDia(rend,gast,nom,hlin,corte,bul,gv){
+  var filas=[],T={rejas:0,bultos:0,gasto:0,min:0,mx:0,np:0};
+  LINEAS.forEach(function(L){
+    var R=rend[L]||null, G=(gast&&gast[L])||null, N=nom[L]||null;
+    /* LO QUE CORTO CAMPOS manda sobre las rejas que trae control de empaque:
+       alla solo estan las mallas que se alcanzaron a procesar, y solo si ese
+       dia ya se guardo. */
+    var C=(corte&&corte[L]!==undefined&&corte[L]>0)?n0(corte[L]):null;
+    var rejas=0,rec=0,emp=0,ca=0,cb=0,cc=0;
+    if(R){Object.keys(R).forEach(function(k){
+      var r=R[k]||{};
+      rejas+=n0(r.rejas); rec+=n0(r.kgRec); emp+=n0(r.kgEmp);
+      var d=r.det||{};
+      /* OJO CON LAS UNIDADES DEL DETALLE POR CALIDAD.
+         Persa, Morron y Minibel: lo llegado y el detalle van los dos en KILOS.
+         Europeo: los dos en PIEZAS (el detalle trae pz).
+         Slicer: lo llegado va en PIEZAS pero el detalle trae los KILOS y las
+         CAJAS de 36 CT. Sumar esos kilos contra piezas da porcentajes absurdos,
+         asi que ahi se usan las cajas por 36, que es justo lo empacado. */
+      ca+=calVal(d.a,UNID[L]); cb+=calVal(d.b,UNID[L]); cc+=calVal(d.c,UNID[L]);
+    })}
+    var min=N?n0(N.min):0, mx=N?n0(N.mx):0, np=N?n0(N.np):0;
+    /* DOS HORAS DISTINTAS, Y NO SE CRUZAN (Miguel, 14/10/2026).
+       HORAS HOMBRE = la suma de lo que trabajaron todas las personas en esa
+       linea. Sirve para el COSTO, porque eso es lo que se paga.
+       HORAS DE LINEA = las horas de RELOJ que la linea estuvo en ese cultivo,
+       o sea horas hombre entre la gente. Si 24 personas metieron 132 horas
+       hombre, la linea corrio 5.5 horas. ESA es con la que se mide el ritmo:
+       los bultos y las rejas por hora van sobre las horas de linea, no sobre
+       las horas hombre. Con horas hombre salian 26 bultos/hora y no cuadraba
+       con lo que el ve en el empaque. */
+    var hh=min/60, hx=mx/60;
+    var HL=hlin&&hlin[L]?hlin[L]:null;
+    var h=HL?HL.min/60:(np>0?(min/np)/60:0);   /* del horario real; si no hay, promedio */
+    var hpar=HL?HL.paro/60:0;
+    var mot=HL?(HL.mot||{}):{};
+    /* [stated] 14/10: el ritmo se saca con las horas EFECTIVAS, las que de verdad
+       se estuvo trabajando. "Me vas a poner que fueron diez pero seis paradas y
+       cuatro trabajando, y me divides entre cuatro lo que realmente trabajo".
+       Las horas totales y las paradas se siguen reportando, porque son las que se
+       pagan y las que explican el costo. */
+    var hef=h-hpar; if(hef<0)hef=0;
+    var exacta=!!HL;
+    var BU=bultosDe(bul,L);
+    var bultos=G?n0(G.bultos):0, gasto=G?n0(G.totalCosto):0;
+    var GV=(gv&&gv[L]!=null)?n0(gv[L]):0;
+    /* DE DONDE SALE EL COSTO, en este orden (KPI23, 17/10/2026):
+       1. el dia guardado en gastos (gastos-dias-v1) — si esta, ese manda
+       2. las capturas de la app de gastos (gastos-v2)
+       3. LA NOMINA: jor + ext ya vienen EN PESOS en nomina-hist-v1, y es
+          justo lo que la app de gastos usa para armar el dia. KPIs los
+          tenia cargados y no los usaba. Las cenas no estan en nomina (se
+          capturan a mano en gastos), asi que por aqui el costo puede salir
+          sin ellas hasta que se guarde el dia. */
+    if(gasto<=0&&GV>0)gasto=GV;
+    var GN=N?(n0(N.jor)+n0(N.ext)):0;
+    if(gasto<=0&&GN>0)gasto=GN;
+    if(bultos<=0&&BU!==null&&BU>0)bultos=BU;
+    var merma=rec-emp;
+    if(C!==null)rejas=C;
+    if(!R&&!G&&!N&&C===null&&!(BU!==null&&BU>0)&&!(GV>0)&&!(gasto>0))return;            /* esa linea no corrio ese dia */
+    filas.push({L:L,u:UNID[L],rejas:rejas,rec:rec,emp:emp,
+      pa:rec>0?100*ca/rec:0, pb:rec>0?100*cb/rec:0, pc:rec>0?100*cc/rec:0,
+      pm:rec>0?100*merma/rec:0, merma:merma,
+      h:h,hef:hef,hh:hh,hx:hx,hpar:hpar,mot:mot,exacta:exacta,np:np,bultos:bultos,gasto:gasto,
+      rejasH:hef>0?rejas/hef:0, bultosH:hef>0?bultos/hef:0, cpb:bultos>0?gasto/bultos:0,
+      falta:{rend:!R,gast:(!G&&!(bultos>0)&&!(gasto>0)),nom:!N,rec:(C===null&&!R)}});
+    T.rejas+=rejas; T.bultos+=bultos; T.gasto+=gasto; T.min+=min; T.mx+=mx; T.np+=np;
+  });
+  /* EL GENERAL DEL DIA (17/10/2026).
+     [stated] Miguel: "Si ya sabes cuantas horas trabaje, que los tomas de
+     control de asistencias, y los bultos ya lo sabes, ya con eso puedes sacar
+     bultos por hora. Por que no me las tienes?"
+     Las horas de linea del dia se SUMAN: son horas-linea trabajadas (si dos
+     lineas corrieron 3 h cada una, el empaque metio 6 horas-linea). El ritmo
+     general sale de dividir entre las EFECTIVAS, igual que en cada linea, asi
+     que es el promedio pesado del empaque, no el de ninguna linea sola. */
+  T.hh=T.min/60; T.hx=T.mx/60;
+  T.h=0; T.hpar=0; T.hef=0; T.mot={};
+  filas.forEach(function(x){T.h+=x.h; T.hpar+=x.hpar; T.hef+=x.hef;
+    Object.keys(x.mot||{}).forEach(function(k){T.mot[k]=(T.mot[k]||0)+x.mot[k]})});
+  T.rejasH=T.hef>0?T.rejas/T.hef:0;
+  T.bultosH=T.hef>0?T.bultos/T.hef:0;
+  T.exacta=filas.every(function(x){return x.exacta});
+  pctGen(T,filas);
+  T.cpb=T.bultos>0?T.gasto/T.bultos:0;
+  return {filas:filas,tot:T};
+}
+
+/* ---------- comparacion contra el dia guardado anterior ---------- */
+function cmp(hoyV,antV,menosEsMejor){
+  if(ant0(antV)===0||hoyV===undefined||hoyV===null)return null;
+  var d=hoyV-antV, p=100*d/Math.abs(antV);
+  if(Math.abs(p)<0.5)return null;     /* si no se movio, no se escribe nada */
+  var bueno=menosEsMejor?(d<0):(d>0);
+  return {t:(d>0?"▲ ":"▼ ")+dec(Math.abs(p),1)+"%", c:bueno?"up":"dn", p:p};
+}
+function ant0(v){return (v===undefined||v===null||isNaN(v))?0:v}
+
+function Cmp(props){
+  var c=props.c;
+  if(!c)return null;
+  return <div className={"cmp "+c.c}>{c.t}</div>;
+}
+
+function fLbl(f){if(!f)return "";var p=String(f).split("-");
+  return parseInt(p[2],10)+" "+MES[parseInt(p[1],10)-1]}
+
+/* un recuadro. Sin semaforo: [stated] Miguel, 14/10/2026: "eso de mejor y peor
+   que el dia anterior, eso quitaselo, no me gusta". La tendencia se ve en la
+   grafica de lineas, no pintando cada numero. */
+function B(props){
+  return (<div className="b">
+    <div className="k">{props.k}</div>
+    <div className="v" style={{color:props.col||"var(--tx)"}}>{props.v}</div>
+  </div>);
+}
+
+/* ===========================================================================
+   ANÁLISIS: NÚMEROS, NO TEXTO   (KPI27, 22/10/2026)
+   [stated] Miguel, 22/10/2026: "Es mucha letra, no quiero estar leyendo. Esta
+   es una tabla matematica, no es un libro." Por eso el porque va en fichitas de
+   puros numeros, no en renglones escritos.
+   [stated] Lo que quiere filtrar: "rejas, bultos, rejas por hora, bultos por
+   hora, horas de la linea, efectivas, paros, gente, hombres, horas extra,
+   gastos, costo por bulto, la primera, la segunda y la tercera y la merma".
+   Son las MISMAS 16 columnas de la tabla corrida: aqui se ven de corrido.
+
+   LA REFERENCIA ES LO NORMAL, NO EL DIA ANTERIOR:
+   [stated] "Si lo traiamos en 1.50 y se me subio a 2 pesos, ahi me analizas.
+   Pero el siguiente dia, despues de los 2 pesos, ya no vas a tomar 2 pesos como
+   referencia, vas a seguir tomando el 1.50. Ya cuando veamos que la subida de
+   50 centavos es fija, la razon va a ser la misma, ahi ya no tiene caso que me
+   mandes alerta, porque ya es un cambio hacia arriba constante."
+   - lo NORMAL es el promedio de los dias que NO se han salido de la banda
+   - SOLO SE AVISAN LAS ALTAS. [stated] 22/10/2026: "solo ponme los que salgan
+     en contra, cuando salga muy alto el costo. Informame solo cuando haya
+     altas." Las bajas no se avisan, pero SI mueven lo normal cuando se quedan,
+     para que una subida posterior se mida contra el nivel nuevo
+   - se avisa SOLO el primer dia que se sale
+   - si se sale DOS dias seguidos ya es el nuevo nivel: se vuelve a anclar ahi
+     y se deja de avisar
+   - el margen sigue siendo 50 centavos, y es MAS de 50: de 1.50 a 2.00 no avisa
+
+   IDENTIDAD EXACTA:  $/bulto = gasto / (bultos-hora x horas efectivas)
+   El cambio del costo se reparte EXACTO entre esas tres con logaritmos: los
+   tres pedazos SUMAN el cambio completo. No se invento ni un factor.
+   NO SE ESCRIBE NADA: es puro de pantalla. No toca escanea ni kpi-dias-v1.   */
+
+var UMB=0.50;
+function nz(v){return (v===undefined||v===null||isNaN(v))?0:v}
+
+/* las 16, en el mismo orden de la tabla corrida.
+   [campo, etiqueta, unidad, menosEsMejor]  (null = ni bueno ni malo) */
+var CONC=[
+  ["rejas",  "REJAS",      "",  false],
+  ["bultos", "BULTOS",     "",  false],
+  ["rejasH", "REJAS/H",    "",  false],
+  ["bultosH","BULTOS/H",   "",  false],
+  ["h",      "H LÍNEA",    "h", null ],
+  ["hef",    "EFECTIVAS",  "h", null ],
+  ["hpar",   "PARO",       "h", true ],
+  ["np",     "GENTE",      "",  null ],
+  ["hh",     "H HOMBRE",   "h", null ],
+  ["hx",     "H EXTRA",    "h", null ],
+  ["gasto",  "GASTO",      "$", true ],
+  ["cpb",    "$ / BULTO",  "$", true ],
+  ["pa",     "1a",         "%", false],
+  ["pb",     "2a",         "%", null ],
+  ["pc",     "3a",         "%", true ],
+  ["pm",     "MERMA",      "%", true ]
+];
+function concDe(k){for(var i=0;i<CONC.length;i++)if(CONC[i][0]===k)return CONC[i];return CONC[11]}
+function valFmt(v,u){
+  if(v===null||v===undefined)return "—";
+  if(u==="$")return pesos(v);
+  if(u==="%")return dec(v,1)+"%";
+  if(u==="h")return dec(v,1);
+  return dec(v,Math.abs(v)<10?1:0);
+}
+function filaDe(e,L){
+  if(!e)return null;
+  if(!L)return e.tot||null;
+  var fs=e.filas||[];
+  for(var i=0;i<fs.length;i++)if(fs[i].L===L)return fs[i];
+  return null;
+}
+/* motivos del paro, cortito: "fruta 2.0 · mecánica 1.0" */
+function paroCorto(mot){
+  var ks=Object.keys(mot||{}).sort(function(a,b){return mot[b]-mot[a]});
+  if(!ks.length)return "";
+  return ks.map(function(k){
+    return nomMot(k).split(" ").pop()+" "+dec(mot[k]/60,1)}).join(" · ");
+}
+function repartoCosto(h,a){
+  if(!h||!a)return null;
+  if(!(nz(h.cpb)>0&&nz(a.cpb)>0))return null;
+  if(!(nz(h.hef)>0&&nz(a.hef)>0))return null;
+  if(!(nz(h.gasto)>0&&nz(a.gasto)>0))return null;
+  if(!(nz(h.bultosH)>0&&nz(a.bultosH)>0))return null;
+  var tG=Math.log(h.gasto/a.gasto);
+  var tR=-Math.log(h.bultosH/a.bultosH);
+  var tH=-Math.log(h.hef/a.hef);
+  var sm=tG+tR+tH;
+  if(!isFinite(sm)||Math.abs(sm)<1e-9)return null;
+  var d=h.cpb-a.cpb;
+  return {d:d,gasto:d*(tG/sm),ritmo:d*(tR/sm),horas:d*(tH/sm)};
+}
+/* los bultos que se dejaron de hacer. Cada causa por su lado: la merma es el
+   porque del ritmo, no un renglon aparte, asi que NO se suman */
+function bultosPerdidos(h,a){
+  var o={paro:0,merma:0};
+  if(!h)return o;
+  if(nz(h.hpar)>0&&nz(h.bultosH)>0)o.paro=h.bultosH*h.hpar;
+  if(a&&nz(h.rec)>0&&nz(h.emp)>0&&nz(h.bultos)>0&&nz(h.pm)>nz(a.pm))
+    o.merma=(h.rec*(h.pm-a.pm)/100)*(h.bultos/h.emp);
+  return o;
+}
+
+/* una fichita de numeros */
+function M(props){
+  return <span style={{display:"inline-block",padding:"3px 9px",borderRadius:7,
+    background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",
+    fontSize:11.5,fontWeight:800,marginRight:5,marginTop:5,
+    color:props.col||"var(--tx)"}}>{props.children}</span>;
+}
+
+/* grafica de linea en SVG a mano: sin libreria y sin CDN */
+function Graf(props){
+  var p=props.pts||[]; if(p.length<2)return null;
+  var col=props.col||"#5ee08a", W=320, H=124, mx=30, my=15;
+  var vs=p.map(function(x){return nz(x.v)});
+  var mn=Math.min.apply(null,vs), mM=Math.max.apply(null,vs);
+  if(mM===mn){var e=(mn===0?1:Math.abs(mn)*0.1); mM=mn+e; mn=mn-e}
+  var pr=(props.raya!==undefined&&props.raya!==null)?props.raya
+         :vs.reduce(function(s,v){return s+v},0)/vs.length;
+  function X(i){return mx+(W-mx-7)*(i/(p.length-1))}
+  function Y(v){return H-my-(H-my*2)*((v-mn)/(mM-mn))}
+  var d=p.map(function(x,i){return r2(X(i))+","+r2(Y(nz(x.v)))}).join(" ");
+  return (
+  <svg viewBox={"0 0 "+W+" "+H} style={{width:"100%",height:"auto",display:"block"}}>
+    <line x1={mx} y1={r2(Y(pr))} x2={W-7} y2={r2(Y(pr))} stroke="#ffffff"
+      strokeOpacity=".28" strokeWidth="1" strokeDasharray="4 4"/>
+    <polyline points={d} fill="none" stroke={col} strokeWidth="2.4"
+      strokeLinejoin="round" strokeLinecap="round"/>
+    {p.map(function(x,i){
+      var v=nz(x.v), fuera=pr!==0&&Math.abs(v-pr)/Math.abs(pr)>=0.25;
+      return <circle key={i} cx={r2(X(i))} cy={r2(Y(v))} r={fuera?3.7:2.3}
+        fill={fuera?"#ef6a6a":col}/>;})}
+    <text x="2" y={r2(Y(mM))+3} fill="#8a9a8a" fontSize="8.5" fontWeight="700">{props.lmax}</text>
+    <text x="2" y={r2(Y(mn))+3} fill="#8a9a8a" fontSize="8.5" fontWeight="700">{props.lmin}</text>
+    <text x={mx} y={H-1.5} fill="#6d7d6d" fontSize="8" fontWeight="700">{props.lpri}</text>
+    <text x={W-7} y={H-1.5} textAnchor="end" fill="#6d7d6d" fontSize="8"
+      fontWeight="700">{props.lult}</text>
+  </svg>);
+}
+
+/* EL PORQUÉ, EN FICHITAS. Arriba el reparto del costo, abajo qué lo movió. */
+function Porque(props){
+  var h=props.h, a=props.a, R=repartoCosto(h,a), P=bultosPerdidos(h,a);
+  var rep=[], mov=[];
+  function dol(v,t){return (v>0?"+$":"−$")+dec(Math.abs(v),2)+" "+t}
+  if(R){
+    [["ritmo",R.ritmo],["horas",R.horas],["gasto",R.gasto]]
+      .sort(function(x,y){return Math.abs(y[1])-Math.abs(x[1])})
+      .forEach(function(t){ if(Math.abs(t[1])<0.005)return;
+        rep.push(<M key={t[0]} col={t[1]>0?"#ef6a6a":"#5ee08a"}>{dol(t[1],t[0])}</M>);});
+  }
+  if(nz(a.bultosH)>0&&nz(h.bultosH)>0&&Math.abs(h.bultosH-a.bultosH)/a.bultosH>=0.01)
+    mov.push(<M key="b" col={h.bultosH<a.bultosH?"#ef6a6a":"#5ee08a"}>
+      {"bultos/h "+dec(a.bultosH,0)+"→"+dec(h.bultosH,0)}</M>);
+  if(Math.abs(nz(h.pm)-nz(a.pm))>=0.5)
+    mov.push(<M key="m" col={h.pm>a.pm?"#ef6a6a":"#5ee08a"}>
+      {"merma "+dec(a.pm,1)+"→"+dec(h.pm,1)+"%"}</M>);
+  if(nz(h.hpar)>0)
+    mov.push(<M key="p" col="#ef6a6a">
+      {"paro "+dec(h.hpar,1)+" h"+(paroCorto(h.mot)?"  ("+paroCorto(h.mot)+")":"")}</M>);
+  if(Math.abs(nz(h.pc)-nz(a.pc))>=1)
+    mov.push(<M key="t" col={h.pc>a.pc?"#ef6a6a":"#5ee08a"}>
+      {"3a "+dec(a.pc,1)+"→"+dec(h.pc,1)+"%"}</M>);
+  if(nz(a.gasto)>0&&Math.abs(nz(h.gasto)-nz(a.gasto))/a.gasto>=0.05)
+    mov.push(<M key="g">{"gasto $"+miles(a.gasto)+"→$"+miles(h.gasto)}</M>);
+  if(nz(a.np)>0&&nz(h.np)!==nz(a.np))
+    mov.push(<M key="n">{"gente "+miles(a.np)+"→"+miles(h.np)}</M>);
+  if(P.paro>0)mov.push(<M key="pp" col="#ef6a6a">{"−"+miles(P.paro)+" bultos · paro"}</M>);
+  if(P.merma>0)mov.push(<M key="pm" col="#ef6a6a">{"−"+miles(P.merma)+" bultos · merma"}</M>);
+  if(!rep.length&&!mov.length)return null;
+  return (<div>{rep.length?<div>{rep}</div>:null}{mov.length?<div>{mov}</div>:null}</div>);
+}
+
+/* LA SERIE DEL CONCEPTO: cajas, grafica y tabla */
+/* los conceptos que son RAZON (una division): su promedio NO es el promedio de
+   los promedios, va pesado con el total del periodo. Asi el numero de la caja,
+   la raya de la grafica y la columna VS PROMEDIO son el MISMO numero que el de
+   la tarjeta de PROMEDIOS, y no salen dos promedios distintos de lo mismo. */
+var RAZON={cpb:1,bultosH:1,rejasH:1,pa:1,pb:1,pc:1,pm:1};
+function Serie(props){
+  var p=props.pts, C=concDe(props.conc), u=C[2], menos=C[3];
+  var vs=p.map(function(x){return nz(x.v)});
+  var pr=vs.reduce(function(s,v){return s+v},0)/vs.length;
+  if(RAZON[props.conc]&&props.prom&&props.prom[props.conc]!==null
+     &&props.prom[props.conc]!==undefined)pr=props.prom[props.conc];
+  var mn=Math.min.apply(null,vs), mM=Math.max.apply(null,vs);
+  var iMn=vs.indexOf(mn), iMM=vs.indexOf(mM);
+  var hi=menos===null?null:(menos?iMn:iMM), lo=menos===null?null:(menos?iMM:iMn);
+  return (
+  <div style={{marginTop:9}}>
+    <div className="chips" style={{marginBottom:9}}>
+      <B k="PROMEDIO" v={valFmt(pr,u)}/>
+      <B k={menos===null?"MÁS ALTO":(menos?"EL MEJOR":"EL MÁS ALTO")}
+        col={menos===null?null:"#5ee08a"} v={valFmt(menos===null?mM:(menos?mn:mM),u)}/>
+      <B k={menos===null?"MÁS BAJO":(menos?"EL PEOR":"EL MÁS BAJO")}
+        col={menos===null?null:"#ef6a6a"} v={valFmt(menos===null?mn:(menos?mM:mn),u)}/>
+      <B k="DÍAS" v={miles(p.length)}/>
+    </div>
+    <Graf pts={p} col={props.col} lmax={valFmt(mM,u)} lmin={valFmt(mn,u)}
+      raya={pr} lpri={fLbl(p[0].f)} lult={fLbl(p[p.length-1].f)}/>
+    <div className="tbl" style={{marginTop:9}}><table>
+      <thead><tr><th style={{minWidth:92}}>FECHA</th><th>{C[1]}</th>
+        <th>VS ANTERIOR</th><th>VS PROMEDIO</th></tr></thead>
+      <tbody>
+      {p.slice().reverse().map(function(x,i){
+        var j=p.length-1-i, an=j>0?nz(p[j-1].v):null;
+        var dA=(an!==null&&an!==0)?100*(nz(x.v)-an)/Math.abs(an):null;
+        var dP=pr!==0?100*(nz(x.v)-pr)/Math.abs(pr):null;
+        function pin(d){
+          if(d===null||Math.abs(d)<0.5)return <span style={{color:"var(--dim)"}}>—</span>;
+          var c=menos===null?"var(--tx)":((menos?(d<0):(d>0))?"#5ee08a":"#ef6a6a");
+          return <span style={{color:c,fontWeight:900}}>
+            {(d>0?"▲ ":"▼ ")+dec(Math.abs(d),1)+"%"}</span>;}
+        return (<tr key={x.f}><td>{fLbl(x.f)}</td>
+          <td style={{fontWeight:900}}>{valFmt(nz(x.v),u)}</td>
+          <td>{pin(dA)}</td><td>{pin(dP)}</td></tr>);})}
+      </tbody></table></div>
+  </div>);
+}
+
+function App(){
+  var s1=uS(hoy()),f=s1[0],setF=s1[1];
+  var sC=uS(""),cul=sC[0],setCul=sC[1];          /* "" = todos los cultivos */
+  var sM=uS("dia"),modo=sM[0],setModo=sM[1];     /* "dia" | "todas" | "anal" */
+  var sCn=uS("cpb"),conc=sCn[0],setConc=sCn[1];  /* el concepto del ANALISIS */
+  var sO=uS("nue"),ori=sO[0],setOri=sO[1];       /* "nue" | "ant" | "todo" */
+  var s3=uS(null),rend=s3[0],setRend=s3[1];
+  var s4=uS(null),gast=s4[0],setGast=s4[1];
+  var s5=uS(null),nom=s5[0],setNom=s5[1];
+  var sH=uS(null),hlin=sH[0],setHlin=sH[1];
+  var sCo=uS(null),corte=sCo[0],setCorte=sCo[1];
+  var sBu=uS(null),bul=sBu[0],setBul=sBu[1];
+  var sGv=uS(null),gv=sGv[0],setGv=sGv[1];   /* rejas cortadas, de recibo */
+  var s6=uS({}),hist=s6[0],setHist=s6[1];
+  var s7=uS(false),cargando=s7[0],setCargando=s7[1];
+  var s8=uS(""),msg=s8[0],setMsg=s8[1];
+  var sB=uS(""),avBul=sB[0],setAvBul=sB[1];
+
+  var sHo=uS(false),histOk=sHo[0],setHistOk=sHo[1];
+  uE(function(){ fget(NODO).then(function(d){ setHist((d&&typeof d==="object")?d:{});
+    setHistOk(true) }); },[]);
+
+  /* EL BOTON VERDE DEL ARCHIVO DE BULTOS SIGUE ENTRANDO POR AQUI.
+     El link del archivo de trazabilidad apunta a kpis.html?x=<epoch>#bultos=<b64>
+     y escribe kpi-bultos-v1/{fecha}, que es de donde GASTOS saca las cajas.
+     Esta pagina ya no usa ese nodo para calcular, pero el lector NO se puede
+     quitar: si se va, se rompe la cadena y gastos se queda sin bultos. */
+  uE(function(){
+    var h=String(location.hash||"")+"&"+String(location.search||"");
+    var m=h.match(/bultos=([A-Za-z0-9_\-+\/=]+)/);
+    if(!m)return;
+    try{
+      var s=m[1].split("-").join("+").split("_").join("/");
+      while(s.length%4)s+="=";
+      var pl=JSON.parse(decodeURIComponent(escape(atob(s))));
+      if(!pl||!pl.f||!pl.b)throw new Error("payload incompleto");
+      setAvBul("Cargando los bultos del "+fLargo(pl.f)+"...");
+      fput("kpi-bultos-v1/"+pl.f,pl.b).then(function(ok){
+        if(!ok){setAvBul("✗ NO se pudieron cargar los bultos. Vuelve a picarle al botón.");return}
+        var n=0;Object.keys(pl.b).forEach(function(k){
+          var o=pl.b[k]||{};Object.keys(o).forEach(function(p){n+=n0(o[p])})});
+        setAvBul("✓ Bultos cargados del "+fLargo(pl.f)+": "+miles(n)+" cajas");
+        setF(pl.f); setModo("dia");
+        try{history.replaceState(null,"",location.pathname)}catch(e){}
+      });
+    }catch(err){ setAvBul("✗ El link de bultos vino incompleto."); }
+  },[]);
+
+  uE(function(){
+    if(!f)return;
+    setCargando(true);setMsg("");
+    leeDia(f).then(function(d){
+      setRend(d.rend);setGast(d.gast);setNom(d.nom);setHlin(d.hlin);
+      setCorte(d.rec);setBul(d.bul);setGv(d.gv);setCargando(false);
+    }).catch(function(){setCargando(false);setMsg("No se pudo leer.")});
+  },[f]);
+
+  var dia=uM(function(){
+    if(!rend&&!gast&&!nom&&!corte&&!bul&&!gv)return null;
+    return armaDia(rend||{},gast,nom||{},hlin,corte,bul,gv);
+  },[rend,gast,nom,hlin,corte,bul,gv]);
+
+  /* bajarse el historial a un archivo, para tenerlo tambien fuera de la app */
+  function baja(txt,tipo,nom){
+    try{
+      var b=new Blob([txt],{type:tipo}), u=URL.createObjectURL(b);
+      var a=document.createElement("a"); a.href=u; a.download=nom;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(u)},1500);
+    }catch(e){}
+  }
+  /* el CSV baja LO QUE SE ESTA VIENDO (el periodo y el cultivo que trae puesto).
+     El respaldo JSON si baja todo, completo. */
+  function bajaCSV(){
+    var ks=fechas.slice();
+    if(!ks.length)return;
+    var col=["fecha","cultivo","rejas","llego","empaco","bultos","horas_linea",
+      "horas_efectivas","horas_hombre","horas_paradas","rejas_por_hora",
+      "bultos_por_hora","gasto","costo_por_bulto","primera_pct","segunda_pct",
+      "tercera_pct","merma_pct","gente","copia_tomada"];
+    var ln=[col.join(",")];
+    function q(v){var t=String(v===undefined||v===null?"":v);
+      return /[",\n]/.test(t)?'"'+t.split('"').join('""')+'"':t}
+    ks.forEach(function(k){var d=hist[k];
+      (d.filas||[]).filter(function(x){return !cul||x.L===cul}).forEach(function(x){
+        ln.push([k,x.L,x.rejas,r2(x.rec),r2(x.emp),x.bultos,r2(x.h),r2(x.hef),r2(x.hh),
+          r2(x.hpar),r2(x.rejasH),r2(x.bultosH),r2(x.gasto),r2(x.cpb),r2(x.pa),
+          r2(x.pb),r2(x.pc),r2(x.pm),x.np,cuando(d.ts)].map(q).join(","))})});
+    baja("\ufeff"+ln.join("\n"),"text/csv;charset=utf-8",
+      "KPIS-"+(cul?cul.toLowerCase():"todos")+"-"
+      +(ori==="nue"?"nuevo":(ori==="ant"?"anterior":"todo"))+"-"+hoy()+".csv");
+  }
+  function bajaJSON(){
+    if(!Object.keys(hist).length)return;
+    baja(JSON.stringify({app:"KPIs Parras Valley",build:BUILD,
+      bajado:new Date().toISOString(),dias:hist},null,1),
+      "application/json","KPIS-respaldo-"+hoy()+".json");
+  }
+  /* =====  KPIs ES EL ESPEJO, NO UNA COPIA  =====
+     [stated] Miguel, 16/10/2026: "Los KPI son el reflejo, es la ultima
+     aplicacion que registra... Si en gastos ya hay cuatro dias, KPI tiene que
+     captarte cuatro dias tambien. Debe estar mapeando para localizar los
+     ultimos ajustes."
+     ESTO REVIERTE la decision del 14/10 de congelar el historial. Al abrir, la
+     pagina MAPEA las tres apps, saca la lista de fechas que existen y arma cada
+     dia con los numeros de hoy. Lo que se guarda en kpi-dias-v1 ya no manda:
+     queda nada mas de respaldo, para que la pagina pinte algo mientras escanea
+     y para que no se pierda un dia si alguien borra el origen.               */
+  var sLl=uS(""),llen=sLl[0],setLlen=sLl[1];
+
+  /* que app le falta a un dia, para decirlo en la tabla */
+  function queFalta(e){
+    if(!e||!e.filas||!e.filas.length)return "";
+    var q={};
+    e.filas.forEach(function(x){var f=x.falta||{};
+      if(f.rec)q["rejas"]=1; if(f.rend)q["calidades"]=1;
+      if(f.gast&&!(n0(x.gasto)>0))q["costo"]=1; if(f.nom)q["horas"]=1});
+    var k=Object.keys(q);
+    return k.length?("sin "+k.join(", ")):"";
+  }
+  function esISO(k){return /^\d{4}-\d{2}-\d{2}$/.test(k)}
+  function deDK(k){return k.slice(0,4)+"-"+k.slice(4,6)+"-"+k.slice(6,8)}
+  /* compara por VALOR, no por el orden en que quedaron los campos ni por la
+     basurita del decimal; si no, cualquier remapeo se veria como cambio */
+  function parejo(v){
+    if(Array.isArray(v))return v.map(parejo);
+    if(v&&typeof v==="object"){var o={};
+      Object.keys(v).sort().forEach(function(k){o[k]=parejo(v[k])});return o}
+    if(typeof v==="number")return Math.round(v*1e6)/1e6;
+    return v;
+  }
+  function mismo(a,b){
+    if(!a||!b)return false;
+    return JSON.stringify(parejo({f:a.filas,t:a.tot}))
+         ===JSON.stringify(parejo({f:b.filas,t:b.tot}));
+  }
+
+  /* =====  LO GUARDADO NO SE PIERDE NUNCA  =====
+     [stated] Miguel, 16/10/2026: "Imaginate que en una o mas apps se me borre el
+     historial. El entra, va y busca, ya no encuentra nada, ya no va a armar nada
+     y tambien voy a perder KPIs... Cuando hay un cambio, que vaya y rectifique.
+     Pero que solo capte el cambio. Si encuentra cero o borrado, que deje lo que
+     tenia."
+     El mapeo RECTIFICA, nunca vacia. Se junta pedazo por pedazo: de cada linea,
+     el bloque de rejas, el de bultos/costo y el de horas se toman de lo que
+     acaba de encontrar SOLO si lo encontro. Si una app ya no lo trae, se queda
+     el que estaba guardado. Lo derivado se vuelve a sacar con la mezcla.      */
+  function blqRej(x){return {rejas:x.rejas}}
+  function blqCal(x){return {rec:x.rec,emp:x.emp,
+    pa:x.pa,pb:x.pb,pc:x.pc,pm:x.pm,merma:x.merma}}
+  function blqG(x){return {bultos:x.bultos,gasto:x.gasto}}
+  function blqN(x){return {h:x.h,hef:x.hef,hh:x.hh,hx:x.hx,hpar:x.hpar,
+    mot:x.mot||{},exacta:x.exacta,np:x.np}}
+  function tomaBlq(n,v,k,blq){
+    if(!(n.falta&&n.falta[k]))return {d:blq(n),f:false};       /* lo encontro */
+    if(v&&!(v.falta&&v.falta[k]))return {d:blq(v),f:false};    /* se queda el viejo */
+    return {d:blq(n),f:true};                                   /* no hay ni uno */
+  }
+  function fusionaFila(v,n){
+    if(!v)return n;
+    if(!n)return v;
+    var J=tomaBlq(n,v,"rec",blqRej), R=tomaBlq(n,v,"rend",blqCal),
+        G=tomaBlq(n,v,"gast",blqG), N=tomaBlq(n,v,"nom",blqN);
+    var o=Object.assign({L:n.L,u:n.u},J.d,R.d,G.d,N.d);
+    o.falta={rec:J.f,rend:R.f,gast:G.f,nom:N.f};
+    o.rejasH=o.hef>0?o.rejas/o.hef:0;
+    o.bultosH=o.hef>0?o.bultos/o.hef:0;
+    o.cpb=o.bultos>0?o.gasto/o.bultos:0;
+    return o;
+  }
+  function totalDe(filas){
+    var T={rejas:0,bultos:0,gasto:0,min:0,mx:0,np:0,h:0,hpar:0,hef:0,mot:{}};
+    filas.forEach(function(x){
+      T.rejas+=n0(x.rejas); T.bultos+=n0(x.bultos); T.gasto+=n0(x.gasto);
+      T.min+=n0(x.hh)*60; T.mx+=n0(x.hx)*60; T.np+=n0(x.np);
+      T.h+=n0(x.h); T.hpar+=n0(x.hpar); T.hef+=n0(x.hef);
+      Object.keys(x.mot||{}).forEach(function(k){T.mot[k]=(T.mot[k]||0)+x.mot[k]});
+    });
+    T.hh=T.min/60; T.hx=T.mx/60;
+    T.cpb=T.bultos>0?T.gasto/T.bultos:0;
+    T.rejasH=T.hef>0?T.rejas/T.hef:0;
+    T.bultosH=T.hef>0?T.bultos/T.hef:0;
+    T.exacta=filas.every(function(x){return x.exacta});
+    pctGen(T,filas);
+    return T;
+  }
+  /* junta el dia guardado con el recien mapeado */
+  function fusionaDia(v,n){
+    if(!v)return n;
+    if(!n||!n.filas||!n.filas.length)return v;      /* no encontro nada: se queda */
+    var por={};
+    (v.filas||[]).forEach(function(x){por[x.L]={v:x}});
+    n.filas.forEach(function(x){por[x.L]=Object.assign(por[x.L]||{},{n:x})});
+    var filas=LINEAS.filter(function(L){return por[L]})
+      .map(function(L){return fusionaFila(por[L].v,por[L].n)});
+    return {f:v.f||n.f,ts:Date.now(),filas:filas,tot:totalDe(filas)};
+  }
+  /* de a cuatro a la vez, para no ahogar el telefono */
+  function enTandas(lista,fn,n){
+    var out=[],i=0;
+    function sig(){
+      if(i>=lista.length)return Promise.resolve(out);
+      var lote=lista.slice(i,i+(n||4)); i+=lote.length;
+      return Promise.all(lote.map(fn)).then(function(r){
+        out=out.concat(r); return sig();
+      });
+    }
+    return sig();
+  }
+  /* los ranchos de un dia, sin bajarse la foto del reporte */
+  function rendDeDia(dkey){
+    return fkeys("rendimientos-hist-v1/"+dkey).then(function(cs){
+      var ls=Object.keys(cs||{}).filter(function(L){return LINEAS.indexOf(L)>=0});
+      if(!ls.length)return {};
+      return Promise.all(ls.map(function(L){
+        return fget("rendimientos-hist-v1/"+dkey+"/"+L+"/ranchos")
+          .then(function(v){return {L:L,v:v}});
+      })).then(function(a){
+        var o={}; a.forEach(function(x){if(x.v&&typeof x.v==="object")o[x.L]=x.v});
+        return o;
+      });
+    });
+  }
+  /* EL MAPEO: una sola pasada por las tres apps */
+  function escanea(manual){
+    if(manual)setLlen("Mapeando...");
+    return Promise.all([
+      fget("gastos-dias-v1"), fget("nomina-hist-v1"),
+      fkeys("rendimientos-hist-v1"), fget("nomina-dias-v1"),
+      fget("recibo-hist-v1"), fget("kpi-bultos-v1"), fget("gastos-v2")
+    ]).then(function(v){
+      var G=v[0]||{}, N=v[1]||{}, RK=v[2]||{}, ND=v[3]||{};
+      var REC=rejasDeRecibo(v[4]);
+      /* KPI25, 18/10/2026: EL HISTORIAL NO VEIA LOS BULTOS.
+         armaDia recibe 7 cosas y aqui nomas se le pasaban 5: se quedaban
+         fuera los bultos del nodo del boton verde (kpi-bultos-v1) y el gasto
+         de las capturas (gastos-v2). Por eso la pantalla de UN dia si daba los
+         bultos y "todas las fechas" salia en cero, sin bultos por hora y sin
+         costo por bulto. */
+      var BUL=v[5]||{}, GV2=v[6]||null;
+      var set={}, dks={};
+      Object.keys(G).forEach(function(k){if(esISO(k))set[k]=1});
+      LINEAS.forEach(function(L){Object.keys(N[L]||{}).forEach(function(k){
+        if(esISO(k))set[k]=1})});
+      Object.keys(RK).forEach(function(k){
+        if(/^\d{8}$/.test(k)){var f=deDK(k); set[f]=1; dks[f]=k}});
+      Object.keys(REC).forEach(function(k){if(esISO(k))set[k]=1});
+      Object.keys(BUL).forEach(function(k){if(esISO(k))set[k]=1});
+      var fs=Object.keys(set).sort();
+      if(!fs.length){if(manual)setLlen("No hay ninguna fecha en recibo, gastos, nómina ni control de empaque.");
+        return {}}
+      var conRend=fs.filter(function(f){return dks[f]});
+      if(manual)setLlen("Mapeando "+fs.length+" "+(fs.length===1?"fecha":"fechas")+"...");
+      return enTandas(conRend,function(f){
+        return rendDeDia(dks[f]).then(function(o){return {f:f,o:o}});
+      },4).then(function(rs){
+        var R={}; rs.forEach(function(x){R[x.f]=x.o});
+        var out={};
+        fs.forEach(function(f){
+          var nom={};
+          LINEAS.forEach(function(L){if(N[L]&&N[L][f])nom[L]=N[L][f]});
+          var D=armaDia(R[f]||{}, G[f]||null, nom, horasDeLinea(ND[f]||null), REC[f]||null,
+                        BUL[f]||null, gastoDelDia(GV2,f));
+          if(D&&D.filas.length)out[f]={f:f,ts:Date.now(),filas:D.filas,tot:D.tot};
+        });
+        return out;
+      });
+    }).then(function(crudo){
+      var ks=Object.keys(crudo||{});
+      if(!ks.length){if(manual)setLlen("Sin cambios.");return}
+      /* se junta con lo guardado: rectifica lo que cambio, no borra nada */
+      var out={},cambios=[];
+      ks.forEach(function(f){
+        var e=fusionaDia(hist[f],crudo[f]);
+        if(mismo(hist[f],e))return;                 /* igualito: ni se toca */
+        out[f]=e; cambios.push(f);
+      });
+      if(!cambios.length){if(manual)setLlen(ks.length+" "+(ks.length===1?"día":"días")+"  ·  sin cambios");
+        else setLlen(""); return}
+      setHist(function(p){return Object.assign({},p,out)});
+      /* lo guardado en KPIs es el respaldo bueno: se escribe solo */
+      cambios.forEach(function(f){fput(NODO+"/"+f,out[f])});
+      if(manual)setLlen(ks.length+" "+(ks.length===1?"día":"días")
+        +(cambios.length?"  ·  "+cambios.length+" con cambios":"  ·  sin cambios"));
+      else setLlen("");
+    }).catch(function(){if(manual)setLlen("No se pudo mapear.")});
+  }
+  /* mapea solo al abrir */
+  var sAu=uS(false),yaAuto=sAu[0],setYaAuto=sAu[1];
+  uE(function(){
+    if(!histOk||yaAuto)return;
+    setYaAuto(true);
+    escanea(false);
+  },[histOk,yaAuto]);
+  function Llenar(props){
+    return (
+    <div style={{marginTop:props.mt||0}}>
+      <div className="chips">
+        {nTot>0&&<button onClick={bajaCSV}>CSV</button>}
+        {nTot>0&&<button onClick={bajaJSON}>Respaldo</button>}
+      </div>
+      {llen&&<div style={{fontSize:12,fontWeight:800,marginTop:7,color:"var(--tx)"}}>{llen}</div>}
+    </div>);
+  }
+
+  var faltan=uM(function(){
+    if(!dia)return [];
+    var out=[];
+    if(!dia.filas.length)return ["No hay nada de este día en ninguna de las apps."];
+    var ver=dia.filas.filter(function(x){return !cul||x.L===cul});
+    var sj=ver.filter(function(x){return x.falta.rec}).map(function(x){return x.L});
+    var sr=ver.filter(function(x){return x.falta.rend}).map(function(x){return x.L});
+    var sg=ver.filter(function(x){return x.falta.gast&&!(n0(x.gasto)>0)}).map(function(x){return x.L});
+    var sn=ver.filter(function(x){return x.falta.nom}).map(function(x){return x.L});
+    if(sj.length)out.push("Faltan las REJAS: no hay cierre en RECIBO ni día guardado en CONTROL DE EMPAQUE ("+sj.join(", ")+").");
+    if(sr.length)out.push("Faltan las CALIDADES y la MERMA: este día no está guardado en CONTROL DE EMPAQUE ("+sr.join(", ")+"). Es uno por cultivo: entra a la pestaña de cada uno y dale Guardar día.");
+    if(sg.length)out.push("Falta guardar el día en GASTOS: "+sg.join(", ")+". Sin eso no hay bultos ni costo.");
+    if(sn.length)out.push("Falta guardar el día en NÓMINA: "+sn.join(", ")+". Sin eso no hay horas.");
+    return out;
+  },[dia,cul]);
+
+  /* ---- las fechas guardadas en kpi-dias-v1, que es lo que grafica ---- */
+  function esNuevo(k){return String(k)>=CORTE}
+  var cuenta=uM(function(){
+    var q={nue:0,ant:0};
+    Object.keys(hist).forEach(function(k){
+      var d=hist[k]; if(!d)return;
+      if(cul&&!(d.filas||[]).some(function(x){return x.L===cul}))return;
+      q[esNuevo(k)?"nue":"ant"]++});
+    q.todo=q.nue+q.ant; return q;
+  },[hist,cul]);
+  var fechas=uM(function(){
+    return Object.keys(hist).filter(function(k){
+      var d=hist[k]; if(!d)return false;
+      if(ori==="nue"&&!esNuevo(k))return false;
+      if(ori==="ant"&&esNuevo(k))return false;
+      if(!cul)return true;
+      return (d.filas||[]).some(function(x){return x.L===cul});
+    }).sort();
+  },[hist,cul,ori]);
+
+  var nTot=Object.keys(hist).length;
+  var filasVer=uM(function(){
+    if(!dia)return [];
+    return dia.filas.filter(function(x){return !cul||x.L===cul});
+  },[dia,cul]);
+
+  /* =====  ANÁLISIS (KPI27)  — todo sale de `hist`, no se lee ni se escribe
+     nada nuevo en Firebase  ===== */
+  var serie=uM(function(){
+    return fechas.map(function(k){
+      var x=filaDe(hist[k],cul);
+      return x?{f:k,v:nz(x[conc])}:null;
+    }).filter(function(x){return x});
+  },[fechas,hist,cul,conc]);
+
+  /* LO NORMAL, NO EL DIA ANTERIOR. Ver la nota de arriba del archivo:
+     se avisa SOLO el primer dia que se sale de la banda; si se sale dos dias
+     seguidos ya es el nuevo nivel, se vuelve a anclar ahi y se deja de avisar.
+     La comparacion para el porque se hace contra el ULTIMO DIA NORMAL, que es
+     un dia de verdad con sus paros y su merma, no contra un promedio. */
+  var botes=uM(function(){
+    var out=[],norm=[],base=null,ultN=null,ultF="",fuera=0,fv=[],dir=0;
+    fechas.forEach(function(k){
+      var x=filaDe(hist[k],cul); if(!x||!(nz(x.cpb)>0))return;
+      if(base===null){base=x.cpb; norm=[x.cpb]; ultN=x; ultF=k; return}
+      var d=x.cpb-base;
+      if(Math.abs(d)>UMB){
+        var dd=d>0?1:-1;
+        if(dd!==dir){fuera=0; fv=[]; dir=dd}   /* cambio de lado: de nuevo */
+        fuera++; fv.push(x.cpb);
+        /* SOLO LAS ALTAS SE AVISAN */
+        if(fuera===1&&dd>0)out.push({f:k,fa:ultF,h:x,a:ultN,base:base});
+        if(fuera>=2){                      /* ya es constante: nuevo normal */
+          var q=0; fv.forEach(function(v){q+=v});
+          base=q/fv.length; norm=fv.slice();
+          fuera=0; fv=[]; dir=0; ultN=x; ultF=k;
+        }
+      }else{
+        fuera=0; fv=[]; dir=0; norm.push(x.cpb);
+        var z=0; norm.forEach(function(v){z+=v}); base=z/norm.length;
+        ultN=x; ultF=k;
+      }
+    });
+    return out.reverse();
+  },[fechas,hist,cul]);
+
+  /* los promedios del periodo, PESADOS con el total: el costo promedio es
+     gasto total / bultos totales, no el promedio de los costos diarios */
+  var prom=uM(function(){
+    var n=0,rejas=0,bultos=0,gasto=0,hef=0,hpar=0,h=0,np=0,hh=0,hx=0,rec=0,emp=0,
+        sa=0,sb=0,sc=0,u=null,mixto=false;
+    fechas.forEach(function(k){
+      var x=filaDe(hist[k],cul); if(!x)return;
+      n++; rejas+=nz(x.rejas); bultos+=nz(x.bultos); gasto+=nz(x.gasto);
+      hef+=nz(x.hef); hpar+=nz(x.hpar); h+=nz(x.h); np+=nz(x.np);
+      hh+=nz(x.hh); hx+=nz(x.hx); rec+=nz(x.rec); emp+=nz(x.emp);
+      sa+=nz(x.pa)*nz(x.rec); sb+=nz(x.pb)*nz(x.rec); sc+=nz(x.pc)*nz(x.rec);
+      if(x.u){if(u===null)u=x.u; else if(u!==x.u)mixto=true}
+      if(x.mixto)mixto=true;
+    });
+    if(!n)return null;
+    var ok=!mixto&&rec>0;
+    return {n:n,rejas:rejas,bultos:bultos,gasto:gasto,hef:hef,hpar:hpar,h:h,
+      np:np,hh:hh,hx:hx,mixto:mixto,
+      cpb:bultos>0?gasto/bultos:0,
+      bultosH:hef>0?bultos/hef:0,
+      rejasH:hef>0?rejas/hef:0,
+      pa:ok?sa/rec:null, pb:ok?sb/rec:null, pc:ok?sc/rec:null,
+      pm:ok?100*(rec-emp)/rec:null, rend:ok?100*emp/rec:null};
+  },[fechas,hist,cul]);
+
+  /* ===== LA TABLA CORRIDA =====
+     [stated] Miguel, 16/10/2026: "Ahi no quiero graficas. Quiero que me lo
+     pongas a diario... recibido, empacado, rejas vaciadas por hora, bultos
+     empacados por hora, cuanto se gasto, los costos, horas de trabajo, paros,
+     cuantas horas pare y por que. Pero por fecha, por linea. Arriba un general,
+     un general de todo. Y abajo el desglose."
+     Un renglon GENERAL por fecha y debajo un renglon por linea. Las horas de
+     linea y el ritmo NO se suman en el general: las lineas corren al mismo
+     tiempo y sumarlas no significa nada.                                     */
+  var COLS=["REJAS","BULTOS","REJAS/H","BULTOS/H","H LÍNEA","EFECT.","PARO",
+            "GENTE","H HOMBRE","H EXTRA","GASTO","$ / BULTO","1a","2a","3a","MERMA"];
+  function Encabezado(){
+    return (<thead><tr>
+      <th style={{minWidth:118}}>{cul?"FECHA":"FECHA / LÍNEA"}</th>
+      {COLS.map(function(c){return <th key={c}>{c}</th>})}
+    </tr></thead>);
+  }
+  function celdas(x,gen){
+    var ray=<span style={{color:"var(--dim)"}}>—</span>;
+    return [
+      miles(x.rejas), miles(x.bultos),
+      dec(x.rejasH,0), dec(x.bultosH,0),
+      dec(x.h,1)+(x.exacta?"":" ~"), dec(x.hef,1),
+      x.hpar>0?<span style={{color:"#ef6a6a",fontWeight:900}}>{dec(x.hpar,1)}</span>:"0.0",
+      miles(x.np), dec(x.hh,1), dec(x.hx,1),
+      "$"+miles(x.gasto),
+      <span style={{color:gen?"#5ee08a":COLOR[x.L],fontWeight:900}}>{pesos(x.cpb)}</span>,
+      gen&&x.mixto?ray:dec(x.pa,1)+"%", gen&&x.mixto?ray:dec(x.pb,1)+"%",
+      gen&&x.mixto?ray:dec(x.pc,1)+"%", gen&&x.mixto?ray:dec(x.pm,1)+"%"
+    ];
+  }
+  /* los renglones de UNA fecha: el general y su desglose */
+  function RenglonesDe(e){
+    if(!e||!e.filas||!e.filas.length)return null;
+    var fil=e.filas.filter(function(x){return !cul||x.L===cul});
+    if(!fil.length)return null;
+    var G=cul?fil[0]:e.tot;
+    /* [stated] Miguel, 17/10/2026: "Por que me lo marcas doble? Me pones dos
+       veces lo mismo." Cuando el dia trae UNA sola linea, el general y el
+       desglose son el mismo renglon: se pinta uno solo, con el nombre de la
+       linea, y se usan los numeros de la linea (que traen el ritmo). */
+    var sola=fil.length===1;
+    var out=[];
+    out.push(
+      <tr className="gen" key={e.f+"|g"}>
+        <td>{fLargo(e.f)}
+          {sola
+            ? <span className="pill" style={{fontSize:10,padding:"2px 9px",
+                marginLeft:8,background:COLOR[fil[0].L]}}>{fil[0].L}</span>
+            : (cul?"":"  ·  general")}
+          {sola&&queFaltaL(fil[0])&&<span style={{color:"#d9a400",fontWeight:800,
+            fontSize:10.5,marginLeft:6}}>{queFaltaL(fil[0])}</span>}</td>
+        {celdas(sola?fil[0]:G,!sola).map(function(v,i){return <td key={i}>{v}</td>})}
+      </tr>);
+    (sola?[]:fil).forEach(function(x){
+      out.push(
+        <tr className="det" key={e.f+"|"+x.L}>
+          <td><span className="pill" style={{fontSize:10,padding:"2px 9px",
+            background:COLOR[x.L]}}>{x.L}</span>
+            {queFaltaL(x)&&<span style={{color:"#d9a400",fontWeight:800,
+              fontSize:10.5,marginLeft:6}}>{queFaltaL(x)}</span>}</td>
+          {celdas(x,false).map(function(v,i){return <td key={i}>{v}</td>})}
+        </tr>);
+      if(x.hpar>0)out.push(
+        <tr className="por" key={e.f+"|"+x.L+"|p"}>
+          <td colSpan={COLS.length+1}>
+            {x.L}: {dec(x.hpar,1)} h paradas de {dec(x.h,1)} · {listaParo(x.mot)}</td>
+        </tr>);
+    });
+    /* el porque del paro se dice aunque la linea sea la unica del dia */
+    if(sola&&fil[0].hpar>0)out.push(
+      <tr className="por" key={e.f+"|solo|p"}>
+        <td colSpan={COLS.length+1}>
+          {fil[0].L}: {dec(fil[0].hpar,1)} h paradas de {dec(fil[0].h,1)} · {listaParo(fil[0].mot)}</td>
+      </tr>);
+    return out;
+  }
+  function queFaltaL(x){
+    var f=x.falta||{},q=[];
+    /* KPI24: el letrero dice que FALTA EL COSTO solo si de verdad no hay
+       numero. Antes se prendia con que el dia no estuviera guardado en
+       gastos, aunque el costo ya hubiera salido de la nomina. */
+    if(f.rec)q.push("rejas"); if(f.rend)q.push("calidades");
+    if(f.gast&&!(n0(x.gasto)>0))q.push("costo"); if(f.nom)q.push("horas");
+    return q.length?("sin "+q.join(", ")):"";
+  }
+  function Tabla(props){
+    var ds=props.dias||[];
+    var cuerpo=ds.map(RenglonesDe).filter(function(x){return x});
+    if(!cuerpo.length)return <div className="vacio">No hay nada que mostrar.</div>;
+    return (
+    <div className="card">
+      <div className="et">{cuerpo.length+" "+(cuerpo.length===1?"día":"días")
+        +"  ·  "+(cul?cul.toUpperCase():"TODOS LOS CULTIVOS")}</div>
+      <div className="tbl" style={{marginTop:7}}><table>
+        <Encabezado/>
+        <tbody>{cuerpo}</tbody>
+      </table></div>
+    </div>);
+  }
+
+  return (
+  <div className="wrap">
+    <div className="top">
+      <div className="logo">KPIs</div>
+      <div className="ver">PARRAS VALLEY · {BUILD}</div>
+    </div>
+
+    {/* ---------------- FILTROS: CULTIVO Y FECHA ---------------- */}
+    <div className="card">
+      <div className="et">CULTIVO</div>
+      <div className="chips" style={{marginTop:6}}>
+        <div className={"chip"+(cul===""?" on":"")} onClick={function(){setCul("")}}
+          style={cul===""?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.03))"}:null}>
+          TODOS</div>
+        {LINEAS.map(function(L){return (
+          <div key={L} className={"chip"+(cul===L?" on":"")} onClick={function(){setCul(L)}}
+            style={cul===L?{background:COLOR[L],borderColor:COLOR[L],color:"#fff"}:null}>
+            <i style={{background:COLOR[L]}}/>{L.toUpperCase()}</div>)})}
+      </div>
+
+      <div className="et" style={{marginTop:11}}>HISTORIAL</div>
+      <div className="chips" style={{marginTop:6,alignItems:"center"}}>
+        {[["nue","NUEVO"],["ant","ANTERIOR"],["todo","TODO"]].map(function(o){
+          return (
+          <div key={o[0]} className={"chip"+(ori===o[0]?" on":"")}
+            style={ori===o[0]?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.03))"}:null}
+            onClick={function(){setOri(o[0])}}>
+            {o[1]}<span style={{opacity:.6,marginLeft:4}}>{cuenta[o[0]]}</span></div>)})}
+        <span style={{fontSize:10.5,color:"var(--dim)",fontWeight:800,marginLeft:4}}>
+          lo nuevo es del {fLargo(CORTE)} para acá</span>
+      </div>
+
+      <div className="et" style={{marginTop:11}}>FECHA</div>
+      <div className="chips" style={{marginTop:6,alignItems:"center"}}>
+        <div className={"chip"+(modo==="dia"?" on":"")} onClick={function(){setModo("dia")}}
+          style={modo==="dia"?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.03))"}:null}>
+          UN DÍA</div>
+        <div className={"chip"+(modo==="todas"?" on":"")} onClick={function(){setModo("todas")}}
+          style={modo==="todas"?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.03))"}:null}>
+          TODAS LAS FECHAS</div>
+        <div className={"chip"+(modo==="anal"?" on":"")} onClick={function(){setModo("anal")}}
+          style={modo==="anal"?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.03))"}:null}>
+          ANÁLISIS</div>
+        {modo==="dia"&&<input type="date" value={f}
+          onChange={function(e){setF(e.target.value);setMsg("")}}/>}
+        {modo==="dia"&&<button onClick={function(){setF(mueveDia(f,-1));setMsg("")}}>&laquo;</button>}
+        {modo==="dia"&&<button onClick={function(){setF(mueveDia(f,1));setMsg("")}}>&raquo;</button>}
+        {modo==="dia"&&f!==hoy()&&<button onClick={function(){setF(hoy());setMsg("")}}>hoy</button>}
+        <div style={{flex:1}}/>
+        {modo!=="dia"&&<button className="p" onClick={function(){escanea(true)}}>Actualizar</button>}
+      </div>
+      {msg&&<div style={{fontSize:12,fontWeight:800,marginTop:7,
+        color:msg.indexOf("✗")>=0?"#ef6a6a":msg.indexOf("✓")>=0?"#5ee08a":"var(--dim)"}}>{msg}</div>}
+    </div>
+
+    {avBul&&<div className={avBul.indexOf("✗")>=0?"avisoR":"avisoV"}>{avBul}</div>}
+
+    {/* ====================  UN DÍA  ==================== */}
+    {modo==="dia"&&(
+    <div>
+      {cargando&&<div className="vacio">Leyendo las apps...</div>}
+      {!cargando&&faltan.map(function(t,i){return <div className="avisoR" key={i}>{t}</div>})}
+      {!cargando&&dia&&filasVer.length>0&&<Tabla dias={[{f:f,filas:dia.filas,tot:dia.tot}]}/>}
+      {!cargando&&dia&&filasVer.length===0&&
+        <div className="vacio">{cul?("No hay "+cul+" este día."):"No hay nada de este día todavía."}</div>}
+    </div>)}
+
+    {/* ====================  TODAS LAS FECHAS  ==================== */}
+    {modo==="todas"&&(
+    <div>
+      <Llenar mt={0}/>
+      <div style={{height:9}}/>
+      {fechas.length===0
+        ? <div className="card">
+            <div className="h2">Sin fechas</div>
+            <div style={{fontSize:13,color:"var(--dim)",fontWeight:700,marginTop:8,lineHeight:1.6}}>
+              {nTot===0
+                ? "No hay ni una fecha en gastos, nómina ni control de empaque."
+                : (cuenta.todo===0
+                   ? ("Hay "+nTot+" "+(nTot===1?"día":"días")+", pero ninguno trae "+(cul||"ese cultivo")+".")
+                   : ("En "+(ori==="nue"?"LO NUEVO":(ori==="ant"?"LO ANTERIOR":"TODO"))+" no hay días"+(cul?(" de "+cul):"")+". De este cultivo hay "+cuenta.nue+" en lo nuevo y "+cuenta.ant+" en lo anterior."))}
+            </div>
+          </div>
+        : <Tabla dias={fechas.slice().reverse().map(function(k){return hist[k]})}/>}
+    </div>)}
+
+    {/* ====================  ANÁLISIS  ==================== */}
+    {modo==="anal"&&(
+    <div>
+      <Llenar mt={0}/>
+      <div style={{height:9}}/>
+
+      {/* ---- EL CONCEPTO, LA GRÁFICA Y LA SERIE ---- */}
+      <div className="card">
+        <div className="h2" style={{fontSize:16.5,letterSpacing:.2}}>CONCEPTO
+          <span style={{color:"var(--dim)",fontSize:11.5,fontWeight:800,
+            marginLeft:8}}>{cul?cul.toUpperCase():"GENERAL"}</span></div>
+        <div className="chips" style={{marginTop:6}}>
+          {CONC.map(function(c){return (
+            <div key={c[0]} className={"chip"+(conc===c[0]?" on":"")}
+              style={conc===c[0]?{background:"linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.03))"}:null}
+              onClick={function(){setConc(c[0])}}>{c[1]}</div>)})}
+        </div>
+        {serie.length<2
+          ? <div style={{fontSize:13,fontWeight:700,color:"var(--dim)",marginTop:9}}>
+              Hacen falta dos días{cul?(" de "+cul):""}.</div>
+          : <Serie pts={serie} conc={conc} prom={prom} col={cul?COLOR[cul]:"#5ee08a"}/>}
+      </div>
+
+      {/* ---- LOS DÍAS QUE SE SALIERON ---- */}
+      <div style={{height:9}}/>
+      <div className="card">
+        <div className="h2" style={{fontSize:16.5,letterSpacing:.2,color:"#ef6a6a"}}>POR QUÉ SUBIÓ
+          <span style={{color:"var(--dim)",fontSize:11.5,fontWeight:800,
+            marginLeft:8}}>{"más de $"+dec(UMB,2)+" sobre lo normal"}</span></div>
+        {botes.length===0
+          ? <div style={{fontSize:12.5,fontWeight:800,color:"var(--dim)",marginTop:8}}>
+              Ningún día subió más de ${dec(UMB,2)}{cul?(" en "+cul):""}.</div>
+          : botes.map(function(b,i){return (
+              <div key={b.f} style={{borderTop:i===0?"none":"1px solid rgba(255,255,255,.09)",
+                paddingTop:i===0?8:9,marginTop:i===0?0:9}}>
+                <div style={{fontSize:12.5,fontWeight:900}}>
+                  {fLbl(b.f)}
+                  <span style={{color:b.h.cpb>b.base?"#ef6a6a":"#5ee08a",marginLeft:7}}>
+                    {pesos(b.h.cpb)}</span>
+                  <span style={{color:"var(--dim)",fontWeight:800,marginLeft:7}}>
+                    {"normal "+pesos(b.base)+"  "+(b.h.cpb>b.base?"+":"−")
+                     +"$"+dec(Math.abs(b.h.cpb-b.base),2)}</span>
+                  {!cul&&<span style={{color:"var(--dim)",fontWeight:800,marginLeft:7}}>general</span>}
+                </div>
+                <Porque h={b.h} a={b.a}/>
+              </div>);})}
+      </div>
+
+      {/* ---- EL PROMEDIO DE TODO ---- */}
+      <div style={{height:9}}/>
+      <div className="card">
+        <div className="h2" style={{fontSize:16.5,letterSpacing:.2}}>PROMEDIOS
+          <span style={{color:"var(--dim)",fontSize:11.5,fontWeight:800,
+            marginLeft:8}}>{(prom?miles(prom.n):0)+" días"}</span></div>
+        {!prom
+          ? <div style={{fontSize:12.5,fontWeight:800,color:"var(--dim)",marginTop:8}}>
+              Sin días{cul?(" de "+cul):""}.</div>
+          : <div>
+              <div className="chips" style={{marginTop:7}}>
+                <B k="$ / BULTO" v={pesos(prom.cpb)} col="#5ee08a"/>
+                <B k="BULTOS/H" v={dec(prom.bultosH,0)}/>
+                <B k="REJAS/H" v={dec(prom.rejasH,0)}/>
+                <B k="RENDIM." v={prom.rend===null?"—":dec(prom.rend,1)+"%"}/>
+              </div>
+              <div className="chips" style={{marginTop:6}}>
+                <B k="MERMA" v={prom.pm===null?"—":dec(prom.pm,1)+"%"}
+                  col={prom.pm===null?null:"#ef6a6a"}/>
+                <B k="1a" v={prom.pa===null?"—":dec(prom.pa,1)+"%"}/>
+                <B k="2a" v={prom.pb===null?"—":dec(prom.pb,1)+"%"}/>
+                <B k="3a" v={prom.pc===null?"—":dec(prom.pc,1)+"%"}/>
+              </div>
+              <div className="chips" style={{marginTop:6}}>
+                <B k="GASTO/DÍA" v={"$"+miles(prom.gasto/prom.n)}/>
+                <B k="PARO/DÍA" v={dec(prom.hpar/prom.n,1)}
+                  col={prom.hpar>0?"#ef6a6a":null}/>
+                <B k="H LÍNEA/DÍA" v={dec(prom.h/prom.n,1)}/>
+                <B k="GENTE/DÍA" v={dec(prom.np/prom.n,0)}/>
+              </div>
+              <div className="chips" style={{marginTop:6}}>
+                <B k="BULTOS/DÍA" v={miles(prom.bultos/prom.n)}/>
+                <B k="REJAS/DÍA" v={miles(prom.rejas/prom.n)}/>
+                <B k="H HOMBRE/DÍA" v={dec(prom.hh/prom.n,1)}/>
+                <B k="H EXTRA/DÍA" v={dec(prom.hx/prom.n,1)}/>
+              </div>
+            </div>}
+      </div>
+    </div>)}
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById("r")).render(<App/>);
+</script>
+</body>
+</html>
